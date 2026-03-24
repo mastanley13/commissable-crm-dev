@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
-import { logRevenueScheduleAudit } from "@/lib/audit"
 import { buildChangeStartDatePreview } from "@/lib/revenue-schedule-change-start-date"
 
 export const runtime = "nodejs"
@@ -11,10 +9,9 @@ export const dynamic = "force-dynamic"
 
 const BULK_CHANGE_START_DATE_PERMISSIONS = ["revenue-schedules.manage", "opportunities.manage"]
 
-type ChangeStartDateBody = {
+type ChangeStartDatePreviewBody = {
   scheduleIds?: string[]
   newStartDate?: string
-  reason?: string
 }
 
 function toNullableNumber(value: unknown) {
@@ -26,7 +23,7 @@ function toNullableNumber(value: unknown) {
 export async function POST(request: NextRequest) {
   return withPermissions(request, BULK_CHANGE_START_DATE_PERMISSIONS, async req => {
     try {
-      const body = (await req.json().catch(() => null)) as ChangeStartDateBody | null
+      const body = (await req.json().catch(() => null)) as ChangeStartDatePreviewBody | null
       if (!body || typeof body !== "object") {
         return createErrorResponse("Invalid request payload", 400)
       }
@@ -39,7 +36,6 @@ export async function POST(request: NextRequest) {
         return createErrorResponse("scheduleIds must be a non-empty array of ids", 400)
       }
 
-      const reason = typeof body.reason === "string" ? body.reason.trim() : ""
       const tenantId = req.user.tenantId
 
       const schedules = await prisma.revenueSchedule.findMany({
@@ -87,8 +83,7 @@ export async function POST(request: NextRequest) {
           billingStatus: schedule.billingStatus ?? null,
         })),
         newStartDateText: typeof body.newStartDate === "string" ? body.newStartDate : "",
-        reason,
-        requireReason: true,
+        requireReason: false,
         loadExistingSchedulesForDates: async ({ opportunityProductId, selectedScheduleIds, proposedDates }) => {
           const existingSchedules = await prisma.revenueSchedule.findMany({
             where: {
@@ -112,77 +107,10 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      if (!preview.canApply) {
-        const message =
-          preview.blockingReasons[0] ??
-          preview.conflictSummaries[0] ??
-          "Unable to change start date."
-
-        return NextResponse.json(
-          {
-            error: message,
-            preview,
-          },
-          { status: 400 },
-        )
-      }
-
-      const nextDateById = new Map(
-        preview.rows.map(row => [row.id, row.newDate] as const),
-      )
-
-      await prisma.$transaction(async tx => {
-        for (const schedule of schedules) {
-          const nextDateText = nextDateById.get(schedule.id)
-          if (!nextDateText) {
-            throw new Error(`Missing preview date for schedule ${schedule.id}`)
-          }
-
-          await tx.revenueSchedule.update({
-            where: { id: schedule.id },
-            data: {
-              scheduleDate: new Date(`${nextDateText}T00:00:00.000Z`),
-              updatedById: req.user.id,
-            },
-            select: { id: true },
-          })
-        }
-      })
-
-      await Promise.all(
-        schedules.map(schedule => {
-          const nextDateText = nextDateById.get(schedule.id)
-          const nextDate = nextDateText ? new Date(`${nextDateText}T00:00:00.000Z`) : null
-
-          return logRevenueScheduleAudit(
-            AuditAction.Update,
-            schedule.id,
-            req.user.id,
-            tenantId,
-            request,
-            { scheduleDate: schedule.scheduleDate ?? null },
-            {
-              scheduleDate: nextDate,
-              action: "ChangeStartDate",
-              reason,
-              deltaMonths: preview.deltaMonths,
-              baselineDate: preview.baselineDate,
-              newStartDate: preview.newStartDate,
-            },
-          )
-        }),
-      )
-
-      return NextResponse.json({
-        updated: schedules.length,
-        failed: [],
-        errors: {},
-        deltaMonths: preview.deltaMonths,
-        preview,
-      })
+      return NextResponse.json(preview)
     } catch (error) {
-      console.error("Failed to change revenue schedule start dates", error)
-      return NextResponse.json({ error: "Unable to change start dates" }, { status: 500 })
+      console.error("Failed to preview revenue schedule start date changes", error)
+      return NextResponse.json({ error: "Unable to preview start date changes" }, { status: 500 })
     }
   })
 }

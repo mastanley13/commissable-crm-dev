@@ -1,23 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, RevenueScheduleFlexReasonCode } from "@prisma/client"
+import { AuditAction } from "@prisma/client"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
-import { recomputeRevenueScheduleFromMatches } from "@/lib/matching/revenue-schedule-status"
-import { executeFlexAdjustmentSplit } from "@/lib/flex/revenue-schedule-flex-actions"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
-import {
-  applyExpectedDeltasToFutureSchedules,
-  findFutureSchedulesInScope,
-  resolveScheduleScopeKey,
-} from "@/lib/reconciliation/future-schedules"
+import { applyUsageVarianceAdjustment } from "@/lib/reconciliation/apply-usage-variance-adjustment"
 
 interface ApplyRequestBody {
   revenueScheduleId: string
   applyToFuture?: boolean
 }
-
-const EPSILON = 0.005
 
 export async function POST(
   request: NextRequest,
@@ -40,103 +32,37 @@ export async function POST(
     const revenueScheduleId = body.revenueScheduleId.trim()
     const applyToFuture = Boolean(body.applyToFuture)
 
-    const lineItem = await prisma.depositLineItem.findFirst({
-      where: { id: lineId, depositId, tenantId },
-      select: { id: true, reconciled: true },
-    })
-    if (!lineItem) {
-      return createErrorResponse("Deposit line item not found", 404)
-    }
-    if (lineItem.reconciled) {
-      return createErrorResponse("Reconciled line items cannot be changed", 400)
-    }
-
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
 
-    const result = await prisma.$transaction(async tx => {
-      const baseSchedule = await tx.revenueSchedule.findFirst({
-        where: { id: revenueScheduleId, tenantId },
-        select: {
-          id: true,
-          accountId: true,
-          scheduleDate: true,
-          opportunityProductId: true,
-          productId: true,
-          vendorAccountId: true,
-          distributorAccountId: true,
-          vendor: { select: { accountName: true } },
-          distributor: { select: { accountName: true } },
-          product: {
-            select: {
-              productCode: true,
-              partNumberVendor: true,
-              partNumberDistributor: true,
-              partNumberHouse: true,
-            },
-          },
-        },
-      })
-
-      if (!baseSchedule) {
-        throw new Error("Revenue schedule not found")
-      }
-      if (!baseSchedule.scheduleDate) {
-        throw new Error("Revenue schedule date is required to apply future adjustments")
-      }
-
-      const recompute = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
-        varianceTolerance,
-      })
-
-      const usageOverage = recompute.usageBalance < 0 ? Math.abs(recompute.usageBalance) : 0
-      const commissionOverage = recompute.commissionDifference < 0 ? Math.abs(recompute.commissionDifference) : 0
-
-      if (usageOverage <= EPSILON && commissionOverage <= EPSILON) {
-        throw new Error("No overage found to adjust")
-      }
-
-      const flexExecution = await executeFlexAdjustmentSplit(tx, {
-        tenantId,
-        userId: req.user.id,
-        depositId,
-        lineItemId: lineId,
-        baseScheduleId: revenueScheduleId,
-        splitUsage: usageOverage,
-        splitCommission: commissionOverage,
-        varianceTolerance,
-        request,
-        reasonCode: RevenueScheduleFlexReasonCode.OverageOutsideTolerance,
-      })
-
-      let futureUpdate = { updatedScheduleIds: [] as string[] }
-      if (applyToFuture) {
-        const scope = resolveScheduleScopeKey(baseSchedule)
-        const futureSchedules = await findFutureSchedulesInScope(tx, {
-          tenantId,
-          baseScheduleId: baseSchedule.id,
-          baseScheduleDate: baseSchedule.scheduleDate,
-          scope,
-          excludeAllocated: true,
-        })
-
-        futureUpdate = await applyExpectedDeltasToFutureSchedules(tx, {
+    let result: Awaited<ReturnType<typeof applyUsageVarianceAdjustment>>
+    try {
+      result = await prisma.$transaction(tx =>
+        applyUsageVarianceAdjustment(tx, {
           tenantId,
           userId: req.user.id,
           request,
-          schedules: futureSchedules,
-          usageDelta: usageOverage,
-          commissionDelta: commissionOverage,
-          sourceScheduleId: baseSchedule.id,
           depositId,
           depositLineItemId: lineId,
-        })
+          revenueScheduleId,
+          applyToFuture,
+          varianceTolerance,
+        }),
+      )
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to apply adjustment"
+      if (message === "Deposit line item not found") {
+        return createErrorResponse(message, 404)
       }
-
-      return {
-        flexExecution,
-        futureUpdate,
+      if (
+        message === "Reconciled line items cannot be changed" ||
+        message === "Revenue schedule not found" ||
+        message === "Revenue schedule date is required to apply future adjustments" ||
+        message === "No overage found to adjust"
+      ) {
+        return createErrorResponse(message, 400)
       }
-    })
+      throw error
+    }
 
     await logAudit({
       userId: req.user.id,
@@ -151,8 +77,9 @@ export async function POST(
         depositId,
         revenueScheduleId,
         applyToFuture,
-        futureUpdatedCount: result.futureUpdate?.updatedScheduleIds?.length ?? 0,
-        futureUpdatedScheduleIds: result.futureUpdate?.updatedScheduleIds ?? [],
+        futureUpdatedCount: result.futureUpdatedScheduleIds.length,
+        futureUpdatedScheduleIds: result.futureUpdatedScheduleIds,
+        updatedScheduleIds: result.updatedScheduleIds,
         flexExecution: result.flexExecution ? JSON.parse(JSON.stringify(result.flexExecution)) : null,
       },
     })

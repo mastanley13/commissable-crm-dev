@@ -102,7 +102,17 @@ export async function POST(
 
     const group = await prisma.depositMatchGroup.findFirst({
       where: { id: matchGroupId, tenantId, depositId },
-      select: { id: true, status: true, createdAt: true },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        resolutionType: true,
+        createdRevenueScheduleIds: true,
+        createdOpportunityProductIds: true,
+        createdProductIds: true,
+        createdAdjustmentIds: true,
+        affectedRevenueScheduleIds: true,
+      },
     })
     if (!group) {
       return createErrorResponse("Match group not found", 404)
@@ -138,9 +148,15 @@ export async function POST(
       }
 
       const autoFillAuditLogIdsFromApply = parseStringArray((applyMetadata as any)?.autoFillAuditLogIds)
-      const createdRevenueScheduleIds = parseStringArray((applyMetadata as any)?.createdRevenueScheduleIds)
-      const createdOpportunityProductIds = parseStringArray((applyMetadata as any)?.createdOpportunityProductIds)
-      const createdProductIds = parseStringArray((applyMetadata as any)?.createdProductIds)
+      const createdRevenueScheduleIds = parseStringArray(group.createdRevenueScheduleIds ?? (applyMetadata as any)?.createdRevenueScheduleIds)
+      const createdOpportunityProductIds = parseStringArray(
+        group.createdOpportunityProductIds ?? (applyMetadata as any)?.createdOpportunityProductIds,
+      )
+      const createdProductIds = parseStringArray(group.createdProductIds ?? (applyMetadata as any)?.createdProductIds)
+      const createdAdjustmentIds = parseStringArray(group.createdAdjustmentIds ?? (applyMetadata as any)?.createdAdjustmentIds)
+      const affectedRevenueScheduleIds = parseStringArray(
+        group.affectedRevenueScheduleIds ?? (applyMetadata as any)?.affectedRevenueScheduleIds,
+      )
 
       const matches = await tx.depositLineMatch.findMany({
         where: { tenantId, matchGroupId },
@@ -240,6 +256,12 @@ export async function POST(
         })
       }
 
+      if (createdAdjustmentIds.length > 0) {
+        await (tx as any).revenueScheduleAdjustment.deleteMany({
+          where: { tenantId, id: { in: createdAdjustmentIds } },
+        })
+      }
+
       if (createdOpportunityProductIds.length > 0) {
         await tx.opportunityProduct.deleteMany({
           where: { tenantId, id: { in: createdOpportunityProductIds } },
@@ -269,7 +291,11 @@ export async function POST(
         recomputedLines.push(updated)
       }
 
-      const recomputeScheduleIds = scheduleIds.filter(id => !createdRevenueScheduleIds.includes(id))
+      const recomputeScheduleIds = Array.from(
+        new Set(
+          [...scheduleIds, ...affectedRevenueScheduleIds].filter(id => id && !createdRevenueScheduleIds.includes(id)),
+        ),
+      )
 
       const recomputedSchedules = await recomputeRevenueSchedules(tx, recomputeScheduleIds, tenantId, {
         varianceTolerance,

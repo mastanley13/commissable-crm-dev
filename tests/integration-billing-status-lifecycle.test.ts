@@ -212,7 +212,7 @@ integrationTest("BILL-STATUS-02: resolve-flex (FlexProduct) sets base+flex sched
   })
   assert.ok(flexAfter)
   assert.equal(flexAfter!.billingStatus, "InDispute")
-  assert.equal(flexAfter!.scheduleNumber, "FLEX-RS-BS-2")
+  assert.equal(flexAfter!.scheduleNumber, "RS-BS-2.1")
 })
 
 integrationTest("BILL-STATUS-03: chargeback approve keeps billingStatus InDispute", async ctx => {

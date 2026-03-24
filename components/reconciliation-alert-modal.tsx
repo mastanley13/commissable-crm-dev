@@ -483,19 +483,16 @@ export function ReconciliationAlertModal(props: {
   const absorbPreview = useMemo(() => {
     if (!props.schedule || props.aiAdjustmentState?.preview?.suggestion.type !== "adjust") return null
 
-    const quantity = Number(props.schedule.quantity || 0)
     const usageOverage = props.aiAdjustmentState.preview.base.usageOverage
     const commissionOverage = props.aiAdjustmentState.preview.base.commissionOverage
-    const nextExpectedUsageGross = props.schedule.expectedUsageGross + usageOverage
-    const nextExpectedUsageNet = props.schedule.expectedUsageNet + usageOverage
-    const nextExpectedCommissionNet = props.schedule.expectedCommissionNet + commissionOverage
-    const nextPriceEach = quantity > 0 ? nextExpectedUsageGross / quantity : props.schedule.priceEach
 
     return {
-      priceEach: nextPriceEach,
-      expectedUsageGross: nextExpectedUsageGross,
-      expectedUsageNet: nextExpectedUsageNet,
-      expectedCommissionNet: nextExpectedCommissionNet,
+      priceEach: props.schedule.priceEach,
+      expectedUsageGross: props.schedule.expectedUsageGross,
+      expectedUsageNet: props.schedule.expectedUsageNet + usageOverage,
+      expectedCommissionNet: props.schedule.expectedCommissionNet + commissionOverage,
+      usageAdjustmentAmount: usageOverage,
+      commissionAdjustmentAmount: commissionOverage,
     }
   }, [props.aiAdjustmentState, props.schedule])
 
@@ -537,12 +534,18 @@ export function ReconciliationAlertModal(props: {
         label: "Price Each",
         current: formatCurrency(props.schedule.priceEach),
         preview: formatCurrency(absorbPreview?.priceEach ?? props.schedule.priceEach),
+        changed: false,
+      },
+      {
+        label: "Expected Usage Net",
+        current: formatCurrency(props.schedule.expectedUsageNet),
+        preview: formatCurrency(absorbPreview?.expectedUsageNet ?? props.schedule.expectedUsageNet),
         changed: Boolean(absorbPreview),
       },
       {
-        label: "Expected Usage",
-        current: formatCurrency(props.schedule.expectedUsageNet),
-        preview: formatCurrency(absorbPreview?.expectedUsageNet ?? props.schedule.expectedUsageNet),
+        label: "Adjustment Record",
+        current: formatCurrency(0),
+        preview: formatCurrency(absorbPreview?.usageAdjustmentAmount ?? 0),
         changed: Boolean(absorbPreview),
       },
       {
@@ -552,9 +555,15 @@ export function ReconciliationAlertModal(props: {
         changed: Math.abs(selectionAdjustedSchedule.actualUsage - props.schedule.actualUsage) > 0.005,
       },
       {
-        label: "Expected Commission",
+        label: "Expected Commission Net",
         current: formatCurrency(props.schedule.expectedCommissionNet),
         preview: formatCurrency(absorbPreview?.expectedCommissionNet ?? props.schedule.expectedCommissionNet),
+        changed: Boolean(absorbPreview),
+      },
+      {
+        label: "Commission Adjustment",
+        current: formatCurrency(0),
+        preview: formatCurrency(absorbPreview?.commissionAdjustmentAmount ?? 0),
         changed: Boolean(absorbPreview),
       },
       {
@@ -907,7 +916,7 @@ export function ReconciliationAlertModal(props: {
               {(props.matchedUsageAmount > 0 || absorbPreview) && props.schedule ? (
                 <p className="text-xs text-slate-600">
                   <HighlightedValue value="Yellow highlight" tone="green" subtle /> values reflect changes from the selected
-                  deposit match and absorb-preview path.
+                  deposit match and adjustment preview path.
                 </p>
               ) : null}
             </div>
@@ -938,8 +947,8 @@ export function ReconciliationAlertModal(props: {
                           Choose one of the options below to preview the usage-resolution outcome before submit.
                         </p>
                         <OptionCard
-                          title="Absorb into Price Each"
-                          description="Adjust Exp. Usage Gross and recalculate Price Each on the matched schedule."
+                          title="Option A / B: Create adjustment record"
+                          description="Keep price each unchanged and add a ledger adjustment on this schedule, with an optional forward carry to future schedules."
                           active={selectedUsageAction === "absorb"}
                           onClick={() => handleUsageActionSelect("absorb")}
                           disabled={props.flexResolving || Boolean(props.aiAdjustmentState?.loading)}
@@ -957,8 +966,8 @@ export function ReconciliationAlertModal(props: {
                           </div>
                         </div>
                         <OptionCard
-                          title="Create Flex Product"
-                          description="Create a new flex schedule to capture the overage separately."
+                          title="Option C: Create flex child schedule"
+                          description="Create a child schedule to capture the unresolved overage separately from the parent."
                           active={selectedUsageAction === "flex-product"}
                           onClick={() => handleUsageActionSelect("flex-product")}
                           disabled={props.flexResolving}
@@ -977,12 +986,12 @@ export function ReconciliationAlertModal(props: {
                           />
                           <span className="text-sm text-slate-700">
                             <span className="block font-semibold">
-                              Apply this adjustment to all future schedules for this opportunity product
+                              Carry this adjustment to all future schedules for this opportunity product
                             </span>
                             <span className="mt-1 block text-slate-500">
                               {futureCount > 0
-                                ? `${futureCount} future schedule${futureCount === 1 ? "" : "s"} will be updated if you apply the absorb option.`
-                                : "Future schedule impact will be shown when the absorb preview loads."}
+                                ? `${futureCount} future schedule${futureCount === 1 ? "" : "s"} will receive their own adjustment record if you apply this option.`
+                                : "Future schedule impact will be shown when the adjustment preview loads."}
                             </span>
                           </span>
                         </label>
@@ -992,9 +1001,9 @@ export function ReconciliationAlertModal(props: {
                         <div className="space-y-3 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">Absorb preview</p>
+                              <p className="text-sm font-semibold text-slate-900">Adjustment preview</p>
                               <p className="mt-1 text-sm text-slate-600">
-                                Review the schedule changes before submitting the adjustment.
+                                Review the ledger-backed schedule changes before submitting the adjustment.
                               </p>
                             </div>
                             <button
@@ -1020,8 +1029,8 @@ export function ReconciliationAlertModal(props: {
                               {props.aiAdjustmentState.preview.suggestion.type === "adjust" ? (
                                 <>
                                   <PreviewComparisonTable
-                                    title="Absorb Into Price Each Preview"
-                                    description="Changed values are shown in-place with the pending result in the preview column."
+                                    title="Adjustment Record Preview"
+                                    description="Price each stays unchanged. The preview shows the pending adjustment record and resulting schedule totals."
                                     rows={absorbPreviewRows}
                                   />
                                   {props.aiAdjustmentState.applyToFuture ? (
@@ -1034,7 +1043,7 @@ export function ReconciliationAlertModal(props: {
                                 </>
                               ) : (
                                 <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                                  The current preview recommends allocation instead of an absorb-style adjustment.
+                                  The current preview recommends allocation instead of a schedule adjustment.
                                 </div>
                               )}
                             </>
@@ -1044,7 +1053,7 @@ export function ReconciliationAlertModal(props: {
 
                       {selectedUsageAction === "flex-product" && flexActionPreview ? (
                         <PreviewComparisonTable
-                          title="Create Flex Product Preview"
+                          title="Create Flex Child Preview"
                           description={`The overage will be split out to a new flex entry before submit. Usage moved: ${formatCurrency(flexActionPreview.usageOverage)}. Commission moved: ${formatCurrency(flexActionPreview.commissionOverage)}.`}
                           rows={flexPreviewRows}
                         />
@@ -1061,10 +1070,12 @@ export function ReconciliationAlertModal(props: {
                             {selectedUsageAction === "absorb"
                               ? props.aiAdjustmentState?.applying
                                 ? "Submitting..."
-                                : "Submit Absorb into Price Each"
+                                : props.aiAdjustmentState?.applyToFuture
+                                  ? "Submit Adjust Current + Future"
+                                  : "Submit Adjust Current Schedule"
                               : props.flexResolving
                                 ? "Submitting..."
-                                : "Submit Create Flex Product"}
+                                : "Submit Create Flex Child"}
                           </button>
                         </div>
                       ) : null}

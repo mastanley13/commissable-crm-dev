@@ -31,7 +31,7 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
 type AllocationDraft = MatchWizardAllocationDraft
 
 type PreviewIssue = { level: "error" | "warning"; code: string; message: string }
-type VarianceResolutionAction = "Adjust" | "FlexProduct"
+type VarianceResolutionAction = "AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild"
 type PreviewVariancePrompt = {
   scheduleId: string
   scheduleNumber: string
@@ -47,6 +47,8 @@ type PreviewVariancePrompt = {
   usageToleranceAmount: number
   commissionToleranceAmount: number
   allowedPromptOptions: VarianceResolutionAction[]
+  nextFutureScheduleNumber: string | null
+  futureScheduleCount: number
   message: string
 }
 type PreviewResponse =
@@ -287,33 +289,56 @@ function MatchWizardVarianceResolutionModal(props: {
           <div className="grid gap-4 md:grid-cols-2">
             <button
               type="button"
-              onClick={() => props.onSelectAction("Adjust")}
+              onClick={() => props.onSelectAction("AdjustCurrent")}
               className={cn(
                 "rounded-xl border px-4 py-4 text-left shadow-sm transition",
-                selectedAction === "Adjust"
+                selectedAction === "AdjustCurrent"
                   ? "border-[#2f6fe4] bg-[#eef5ff]"
                   : "border-slate-300 bg-white hover:border-[#2f6fe4]",
               )}
             >
-              <p className="text-lg font-semibold text-slate-900">Adjust</p>
+              <p className="text-lg font-semibold text-slate-900">Option A: Adjust this schedule only</p>
               <p className="mt-2 text-sm text-slate-600">
-                Create an adjustment schedule for the overage and keep the base schedule aligned to expected totals.
+                Create one ledger adjustment on this schedule only. Price each stays unchanged and future schedules are not touched.
               </p>
             </button>
             <button
               type="button"
-              onClick={() => props.onSelectAction("FlexProduct")}
-              disabled={!props.prompt.allowedPromptOptions.includes("FlexProduct")}
+              onClick={() => props.onSelectAction("AdjustCurrentAndFuture")}
               className={cn(
-                "rounded-xl border px-4 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60",
-                selectedAction === "FlexProduct"
+                "rounded-xl border px-4 py-4 text-left shadow-sm transition",
+                selectedAction === "AdjustCurrentAndFuture"
                   ? "border-[#2f6fe4] bg-[#eef5ff]"
                   : "border-slate-300 bg-white hover:border-[#2f6fe4]",
               )}
             >
-              <p className="text-lg font-semibold text-slate-900">Flex Product</p>
+              <p className="text-lg font-semibold text-slate-900">Option B: Adjust this and all future schedules</p>
               <p className="mt-2 text-sm text-slate-600">
-                Route the overage to a dedicated flex product schedule instead of absorbing it into the base schedule.
+                Create one adjustment on this schedule and one on each future schedule in scope.
+                {props.prompt.nextFutureScheduleNumber
+                  ? ` Next schedule: ${props.prompt.nextFutureScheduleNumber}.`
+                  : props.prompt.futureScheduleCount > 0
+                    ? ` ${props.prompt.futureScheduleCount} future schedules are currently in scope.`
+                    : " No future schedules are currently in scope."}
+              </p>
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-1">
+            <button
+              type="button"
+              onClick={() => props.onSelectAction("FlexChild")}
+              disabled={!props.prompt.allowedPromptOptions.includes("FlexChild")}
+              className={cn(
+                "rounded-xl border px-4 py-4 text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60",
+                selectedAction === "FlexChild"
+                  ? "border-[#2f6fe4] bg-[#eef5ff]"
+                  : "border-slate-300 bg-white hover:border-[#2f6fe4]",
+              )}
+            >
+              <p className="text-lg font-semibold text-slate-900">Option C: Create flex child schedule</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Keep the parent schedule aligned to its base amount and create a child schedule only for the unresolved overage.
               </p>
             </button>
           </div>

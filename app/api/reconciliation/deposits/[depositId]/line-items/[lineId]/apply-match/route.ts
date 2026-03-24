@@ -27,12 +27,12 @@ import {
 } from "@/lib/reconciliation/future-schedules"
 import { buildCommissionAmountReview } from "@/lib/reconciliation/commission-amount-review"
 import { getLowRateExceptionState, LOW_RATE_EXCEPTION_QUEUE_PATH } from "@/lib/reconciliation/low-rate-exceptions"
-import { recordFieldUndoLog } from "@/lib/reconciliation/undo-log"
 import {
   buildRateDiscrepancySummary,
   deriveReceivedRatePercent,
   normalizeRatePercent,
 } from "@/lib/reconciliation/rate-discrepancy"
+import { createRevenueScheduleAdjustmentWithUndo } from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 interface ApplyMatchRequestBody {
   revenueScheduleId: string
@@ -376,48 +376,21 @@ export async function POST(
               : 0
 
         if (usageOverage > EPSILON || commissionOverage > EPSILON) {
-          const previousUsageAdjustment = toNumber(scheduleContext.usageAdjustment)
-          const previousExpectedCommissionAdjustment = toNumber(scheduleContext.expectedCommissionAdjustment)
+          const createdAdjustment = await createRevenueScheduleAdjustmentWithUndo(tx, {
+            tenantId,
+            depositId,
+            depositLineItemId: lineItem.id,
+            userId: req.user.id,
+            revenueScheduleId,
+            adjustmentType: "adjustment_single",
+            applicationScope: "this_schedule_only",
+            usageAmount: usageOverage,
+            commissionAmount: commissionOverage,
+            effectiveScheduleDate: scheduleContext.scheduleDate ?? null,
+            reason: "Within tolerance variance auto adjustment",
+          })
 
-          const nextUsageAdjustment =
-            usageOverage > EPSILON ? Number((previousUsageAdjustment + usageOverage).toFixed(2)) : previousUsageAdjustment
-          const nextExpectedCommissionAdjustment =
-            commissionOverage > EPSILON
-              ? Number((previousExpectedCommissionAdjustment + commissionOverage).toFixed(2))
-              : previousExpectedCommissionAdjustment
-
-          if (
-            Math.abs(nextUsageAdjustment - previousUsageAdjustment) > EPSILON ||
-            Math.abs(nextExpectedCommissionAdjustment - previousExpectedCommissionAdjustment) > EPSILON
-          ) {
-            await tx.revenueSchedule.update({
-              where: { id: revenueScheduleId },
-              data: {
-                usageAdjustment: nextUsageAdjustment,
-                expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
-              },
-            })
-
-            await recordFieldUndoLog(tx, {
-              tenantId,
-              depositId,
-              depositLineItemId: lineItem.id,
-              targetEntityName: "RevenueSchedule",
-              targetEntityId: revenueScheduleId,
-              relatedRevenueScheduleIds: [revenueScheduleId],
-              createdById: req.user.id,
-              fields: {
-                usageAdjustment: {
-                  previousValue: scheduleContext.usageAdjustment ?? null,
-                  nextValue: nextUsageAdjustment,
-                },
-                expectedCommissionAdjustment: {
-                  previousValue: scheduleContext.expectedCommissionAdjustment ?? null,
-                  nextValue: nextExpectedCommissionAdjustment,
-                },
-              },
-            })
-
+          if (createdAdjustment?.id) {
             await logRevenueScheduleAudit(
               AuditAction.Update,
               revenueScheduleId,
@@ -434,8 +407,7 @@ export async function POST(
                 depositLineItemId: lineItem.id,
                 usageDelta: usageOverage,
                 commissionDelta: commissionOverage,
-                usageAdjustment: nextUsageAdjustment,
-                expectedCommissionAdjustment: nextExpectedCommissionAdjustment,
+                adjustmentId: createdAdjustment.id,
               },
             )
           }

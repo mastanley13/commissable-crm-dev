@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
 import {
-  executeFlexAdjustmentSplit,
   executeFlexProductSplit,
   type FlexResolveAction,
 } from "@/lib/flex/revenue-schedule-flex-actions"
@@ -16,6 +15,7 @@ import {
   findFutureSchedulesInScope,
   resolveScheduleScopeKey,
 } from "@/lib/reconciliation/future-schedules"
+import { createRevenueScheduleAdjustmentWithUndo } from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 interface ResolveFlexRequestBody {
   revenueScheduleId: string
@@ -144,17 +144,18 @@ export async function POST(
           }
         }
 
-        const flexExecution = await executeFlexAdjustmentSplit(tx, {
+        const createdAdjustment = await createRevenueScheduleAdjustmentWithUndo(tx, {
           tenantId,
-          userId: req.user.id,
           depositId,
-          lineItemId: lineId,
-          baseScheduleId: revenueScheduleId,
-          splitUsage: requestedUsage,
-          splitCommission,
-          varianceTolerance,
-          request,
-          reasonCode: RevenueScheduleFlexReasonCode.Manual,
+          depositLineItemId: lineId,
+          userId: req.user.id,
+          revenueScheduleId,
+          adjustmentType: "adjustment_single",
+          applicationScope: "this_schedule_only",
+          usageAmount: requestedUsage,
+          commissionAmount: splitCommission,
+          effectiveScheduleDate: schedule.scheduleDate ?? null,
+          reason: RevenueScheduleFlexReasonCode.Manual,
         })
 
         const updatedBase = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
@@ -162,7 +163,13 @@ export async function POST(
         })
 
         return {
-          flexExecution,
+          flexExecution: {
+            applied: true,
+            action: "Manual",
+            createdRevenueScheduleIds: [],
+            createdProductIds: [],
+            createdAdjustmentIds: createdAdjustment?.id ? [createdAdjustment.id] : [],
+          },
           baseSchedule: updatedBase,
         }
       }
@@ -175,18 +182,13 @@ export async function POST(
 
       const flexExecution =
         action === "Adjust"
-          ? await executeFlexAdjustmentSplit(tx, {
-              tenantId,
-              userId: req.user.id,
-              depositId,
-              lineItemId: lineId,
-              baseScheduleId: revenueScheduleId,
-              splitUsage: usageOverage,
-              splitCommission: commissionOverage,
-              varianceTolerance,
-              request,
-              reasonCode,
-            })
+          ? {
+              applied: true,
+              action: applyToFuture ? "AdjustForward" : "Adjust",
+              createdRevenueScheduleIds: [],
+              createdProductIds: [],
+              createdAdjustmentIds: [] as string[],
+            }
           : await executeFlexProductSplit(tx, {
               tenantId,
               userId: req.user.id,
@@ -200,11 +202,30 @@ export async function POST(
               reasonCode,
             })
 
+      if (action === "Adjust") {
+        const createdAdjustment = await createRevenueScheduleAdjustmentWithUndo(tx, {
+          tenantId,
+          depositId,
+          depositLineItemId: lineId,
+          userId: req.user.id,
+          revenueScheduleId,
+          adjustmentType: "adjustment_single",
+          applicationScope: "this_schedule_only",
+          usageAmount: usageOverage,
+          commissionAmount: commissionOverage,
+          effectiveScheduleDate: schedule.scheduleDate ?? null,
+          reason: reasonCode,
+        })
+        if (createdAdjustment?.id) {
+          ;(flexExecution as any).createdAdjustmentIds.push(createdAdjustment.id)
+        }
+      }
+
       const updatedBase = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
         varianceTolerance,
       })
 
-      let futureUpdate = { updatedScheduleIds: [] as string[] }
+      let futureUpdate = { updatedScheduleIds: [] as string[], createdAdjustmentIds: [] as string[] }
       if (applyToFuture && action === "Adjust") {
         if (!schedule.scheduleDate) {
           throw new Error("Revenue schedule date is required to apply future adjustments")
@@ -229,6 +250,7 @@ export async function POST(
           depositId,
           depositLineItemId: lineId,
         })
+        ;(flexExecution as any).createdAdjustmentIds.push(...(futureUpdate.createdAdjustmentIds ?? []))
       }
 
       return { flexExecution, baseSchedule: updatedBase, futureUpdate }

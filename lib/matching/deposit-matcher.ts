@@ -1,10 +1,11 @@
-import { Prisma, DepositLineMatchStatus, RevenueScheduleStatus } from "@prisma/client"
+import { Prisma, DepositLineMatchStatus, RevenueScheduleFlexClassification, RevenueScheduleStatus } from "@prisma/client"
 import type { SuggestedMatchScheduleRow } from "@/lib/mock-data"
 import { prisma } from "@/lib/db"
 import { formatDateOnlyUtc } from "@/lib/date-only"
 import { formatRevenueScheduleDisplayName } from "@/lib/flex/revenue-schedule-display"
 import { parseMultiValueInput, parseMultiValueMatchSet } from "@/lib/multi-value"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
+import { listRevenueScheduleAdjustmentSums } from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 type DepositLineWithRelations = Awaited<ReturnType<typeof fetchDepositLine>>
 const candidateScheduleInclude = {
@@ -55,6 +56,8 @@ type RevenueScheduleWithRelations = Prisma.RevenueScheduleGetPayload<{
   include: typeof candidateScheduleInclude
 }> & {
   __isFallback?: boolean
+  __ledgerUsageAdjustment?: number
+  __ledgerCommissionAdjustment?: number
 }
 
 interface CandidateSignal {
@@ -562,14 +565,14 @@ type ScheduleMetrics = {
 
 function computeScheduleMetrics(schedule: RevenueScheduleWithRelations): ScheduleMetrics {
   const expectedUsage = toNumber(schedule.expectedUsage)
-  const expectedUsageAdjustment = toNumber(schedule.usageAdjustment)
+  const expectedUsageAdjustment = toNumber(schedule.usageAdjustment) + toNumber(schedule.__ledgerUsageAdjustment)
   const actualUsage = toNumber(schedule.actualUsage)
   const actualUsageAdjustment = toNumber(schedule.actualUsageAdjustment)
 
   const expectedCommission = toNumber(schedule.expectedCommission)
   const expectedCommissionAdjustment = toNumber(
     (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment,
-  )
+  ) + toNumber(schedule.__ledgerCommissionAdjustment)
   const actualCommission = toNumber(schedule.actualCommission)
   const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
 
@@ -812,6 +815,12 @@ async function fetchCandidateSchedules(
     tenantId,
     deletedAt: null,
     scheduleDate: scheduleDateFilter,
+    parentRevenueScheduleId: null,
+    flexClassification: RevenueScheduleFlexClassification.Normal,
+    NOT: [
+      { scheduleNumber: { startsWith: "FLEX-" } },
+      { scheduleNumber: { contains: "." } },
+    ],
     status: {
       in: [
         RevenueScheduleStatus.Unreconciled,
@@ -850,6 +859,12 @@ async function fetchCandidateSchedules(
       tenantId,
       deletedAt: null,
       scheduleDate: scheduleDateFilter,
+      parentRevenueScheduleId: null,
+      flexClassification: RevenueScheduleFlexClassification.Normal,
+      NOT: [
+        { scheduleNumber: { startsWith: "FLEX-" } },
+        { scheduleNumber: { contains: "." } },
+      ],
       status: {
         in: [
           RevenueScheduleStatus.Unreconciled,
@@ -868,6 +883,17 @@ async function fetchCandidateSchedules(
 
     schedules = fallbackSchedules.map(schedule => ({ ...schedule, __isFallback: true }))
   }
+
+  const ledgerAdjustmentSums = await listRevenueScheduleAdjustmentSums(prisma, {
+    tenantId,
+    revenueScheduleIds: schedules.map(schedule => schedule.id),
+  })
+
+  schedules = schedules.map(schedule => ({
+    ...schedule,
+    __ledgerUsageAdjustment: ledgerAdjustmentSums.get(schedule.id)?.usageAmount ?? 0,
+    __ledgerCommissionAdjustment: ledgerAdjustmentSums.get(schedule.id)?.commissionAmount ?? 0,
+  }))
 
   return schedules.filter(schedule => computeCommissionDifference(schedule) > 0)
 }

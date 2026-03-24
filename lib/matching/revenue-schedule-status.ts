@@ -8,6 +8,7 @@ import {
 } from "@prisma/client"
 import { computeNextBillingStatus } from "@/lib/reconciliation/billing-status"
 import { isBillingStatusAutomationEnabled } from "@/lib/feature-flags"
+import { getRevenueScheduleAdjustmentSums } from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
@@ -132,18 +133,22 @@ export async function recomputeRevenueScheduleFromMatches(
   })
 
   const expectedUsage = toNumber(schedule.expectedUsage)
-  const expectedUsageAdjustment = toNumber(schedule.usageAdjustment)
+  const inlineExpectedUsageAdjustment = toNumber(schedule.usageAdjustment)
   const actualUsageAdjustment = toNumber(schedule.actualUsageAdjustment)
 
   const expectedCommission = toNumber(schedule.expectedCommission)
   const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
-  const expectedCommissionAdjustment = toNumber(
+  const inlineExpectedCommissionAdjustment = toNumber(
     (schedule as any).expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment,
   )
+  const ledgerAdjustments = await getRevenueScheduleAdjustmentSums(client, {
+    tenantId,
+    revenueScheduleId,
+  })
 
-  const expectedUsageNet = expectedUsage + expectedUsageAdjustment
+  const expectedUsageNet = expectedUsage + inlineExpectedUsageAdjustment + ledgerAdjustments.usageAmount
   const actualUsageNet = actualUsage + actualUsageAdjustment
-  const expectedCommissionNet = expectedCommission + expectedCommissionAdjustment
+  const expectedCommissionNet = expectedCommission + inlineExpectedCommissionAdjustment + ledgerAdjustments.commissionAmount
   const actualCommissionNet = actualCommission + actualCommissionAdjustment
 
   const usageBalance = expectedUsageNet - actualUsageNet

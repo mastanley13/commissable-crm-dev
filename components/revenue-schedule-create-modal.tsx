@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { Info, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -8,6 +8,7 @@ import { useToasts } from "@/components/toast"
 import { formatCurrencyDisplay, formatDecimalToFixed, formatPercentDisplay, normalizeDecimalInput } from "@/lib/number-format"
 import { formatDateOnlyUtc } from "@/lib/date-only"
 import { diffMonthsUtc, parseDateInputToUtcDate, shiftScheduleDateMonthStartUtc, toMonthStartUtc } from "@/lib/revenue-schedule-date-shift"
+import { canSubmitChangeStartDate, type ChangeStartDatePreview, type ChangeStartDatePreviewRow } from "@/lib/revenue-schedule-change-start-date"
 
 import type {
   OpportunityLineItemRecord,
@@ -22,7 +23,13 @@ type AmountMode = "auto" | "manual"
 interface SelectedScheduleOption {
   id: string
   label: string
+  scheduleNumber: string | null
   scheduleDate: string | null
+  opportunityProductId: string | null
+  scheduleStatus: string | null
+  inDispute: boolean
+  actualUsage: number
+  actualCommission: number
   productNameVendor: string | null
   distributorName: string | null
   vendorName: string | null
@@ -100,6 +107,125 @@ function SelectedSchedulesTable({
               <div className="truncate">{option.vendorName || "--"}</div>
               <div className="truncate">{option.opportunityName || "Opportunity"}</div>
               <div className="truncate">{option.scheduleDate || "--"}</div>
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function StartDateSelectionTable({
+  options,
+  selectedIds,
+  previewRowsById,
+  previewLoading,
+  getIneligibilityReason,
+  onToggle,
+}: {
+  options: SelectedScheduleOption[]
+  selectedIds: string[]
+  previewRowsById: Map<string, ChangeStartDatePreviewRow>
+  previewLoading: boolean
+  getIneligibilityReason: (id: string) => string | undefined
+  onToggle: (id: string, checked: boolean) => void
+}) {
+  if (options.length === 0) {
+    return (
+      <div className="mt-3 rounded-md border border-dashed border-gray-300 bg-white px-4 py-3 text-xs text-gray-600">
+        No schedules selected.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+      <div className="min-w-[1260px]">
+        <div className="grid grid-cols-[auto_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.8fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.8fr)] border-b bg-gray-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+          <div className="text-center">Selected</div>
+          <div>Revenue Schedule #</div>
+          <div>Current Schedule Date</div>
+          <div>New Schedule Date</div>
+          <div>Status</div>
+          <div>Product</div>
+          <div>Distributor</div>
+          <div>Vendor</div>
+          <div>Opportunity</div>
+        </div>
+        {options.map(option => {
+          const ineligibilityReason = getIneligibilityReason(option.id)
+          const checked = selectedIds.includes(option.id)
+          const previewRow = previewRowsById.get(option.id)
+          const isDisabled = Boolean(ineligibilityReason) && !checked
+          const currentDate = previewRow?.currentDate ?? option.scheduleDate ?? "--"
+          const newDate = checked ? previewRow?.newDate ?? "--" : "--"
+          const status = checked ? previewRow?.status ?? null : null
+
+          return (
+            <label
+              key={option.id}
+              title={ineligibilityReason}
+              className={cn(
+                "grid grid-cols-[auto_minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.8fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.8fr)] items-center border-b px-3 py-2 text-xs last:border-b-0",
+                isDisabled ? "bg-gray-50 text-gray-400" : "text-gray-700"
+              )}
+            >
+              <div className="flex items-center justify-center gap-2 pr-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-400 text-primary-600 accent-primary-600 disabled:opacity-60"
+                  checked={checked}
+                  disabled={isDisabled}
+                  onChange={event => {
+                    if (ineligibilityReason && !checked) return
+                    onToggle(option.id, event.target.checked)
+                  }}
+                />
+                {ineligibilityReason ? (
+                  <span
+                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] text-gray-500"
+                    title={ineligibilityReason}
+                  >
+                    <Info className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </div>
+              <div className="truncate font-semibold text-gray-900">{option.scheduleNumber || option.label || "Revenue Schedule"}</div>
+              <div className="truncate">{currentDate}</div>
+              <div>
+                <span
+                  className={cn(
+                    "inline-flex min-w-[104px] items-center rounded-md px-2 py-1 font-medium",
+                    !checked || !previewRow?.newDate
+                      ? "bg-gray-100 text-gray-500"
+                      : previewRow.status === "collision"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-amber-100 text-amber-800"
+                  )}
+                >
+                  {newDate}
+                </span>
+              </div>
+              <div>
+                {checked && status ? (
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold",
+                      status === "collision"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    )}
+                  >
+                    {status === "collision" ? "Collision" : "Ready"}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-gray-400">{previewLoading && checked ? "Checking..." : "--"}</span>
+                )}
+              </div>
+              <div className="truncate">{option.productNameVendor || "--"}</div>
+              <div className="truncate">{option.distributorName || "--"}</div>
+              <div className="truncate">{option.vendorName || "--"}</div>
+              <div className="truncate">{option.opportunityName || "Opportunity"}</div>
             </label>
           )
         })}
@@ -244,6 +370,9 @@ export function RevenueScheduleCreateModal({
     newStartDate: "",
     reason: "",
   })
+  const [startDatePreview, setStartDatePreview] = useState<ChangeStartDatePreview | null>(null)
+  const [startDatePreviewLoading, setStartDatePreviewLoading] = useState(false)
+  const [startDatePreviewError, setStartDatePreviewError] = useState<string | null>(null)
 
   const [statusForm, setStatusForm] = useState({
     scope: "selection" as ManageScope,
@@ -282,9 +411,15 @@ export function RevenueScheduleCreateModal({
   const scheduleOptions = useMemo(() => {
     return schedules.map(schedule => ({
       id: schedule.id,
-      label: schedule.scheduleNumber || schedule.productNameVendor || `Schedule ${schedule.id.slice(0, 6)}`,
+      label: schedule.scheduleNumber || schedule.productNameVendor || "Revenue Schedule",
+      scheduleNumber: schedule.scheduleNumber ?? null,
       scheduleDate: schedule.scheduleDate ? schedule.scheduleDate.slice(0, 10) : null,
       productId: schedule.productId ?? null,
+      opportunityProductId: schedule.opportunityProductId ?? null,
+      scheduleStatus: schedule.scheduleStatus ?? null,
+      inDispute: Boolean(schedule.inDispute),
+      actualUsage: typeof schedule.actualUsage === "number" ? schedule.actualUsage : 0,
+      actualCommission: typeof schedule.actualCommission === "number" ? schedule.actualCommission : 0,
       commissionRate: schedule.expectedCommissionRatePercent ?? 0,
       productNameVendor: schedule.productNameVendor ?? null,
       distributorName: schedule.distributorName ?? null,
@@ -555,6 +690,9 @@ export function RevenueScheduleCreateModal({
       subagent: formatNumber(defaultSubagent, 2)
     })
     setStartDateForm({ newStartDate: "", reason: "" })
+    setStartDatePreview(null)
+    setStartDatePreviewLoading(false)
+    setStartDatePreviewError(null)
     setStatusForm({ scope: "selection", action: "deactivate", reason: "" })
     setSelectedScheduleIds([])
     setSelectionPrefillApplied(false)
@@ -682,24 +820,63 @@ export function RevenueScheduleCreateModal({
     Math.abs(splitFormTotals.total - 100) < 0.01
   )
 
-  const startDateProductIds = useMemo(() => {
-    const ids = new Set<string>()
-    eligibleSelectedScheduleOptions.forEach(option => {
-      if (option.productId) ids.add(option.productId)
-    })
-    return ids
-  }, [eligibleSelectedScheduleOptions])
+  const startDateSelectedScheduleOptions = useMemo(() => {
+    if (!selectedScheduleIds.length) {
+      return []
+    }
+    const selectedSet = new Set(selectedScheduleIds)
+    return scheduleOptions.filter(option => selectedSet.has(option.id))
+  }, [scheduleOptions, selectedScheduleIds])
 
-  const startDateMissingProductCount = useMemo(
-    () => eligibleSelectedScheduleOptions.filter(option => !option.productId).length,
-    [eligibleSelectedScheduleOptions],
+  const startDateIneligibilityReasons = useMemo(() => {
+    const reasons: Record<string, string> = {}
+
+    scheduleOptions.forEach(option => {
+      if (!option.opportunityProductId) {
+        reasons[option.id] = "Cannot shift this schedule because it is missing an opportunity product chain."
+        return
+      }
+
+      const rawStatus = String(option.scheduleStatus ?? "").trim().toLowerCase()
+      if (option.inDispute || rawStatus === "in dispute") {
+        reasons[option.id] = "Cannot shift this schedule because it is in dispute."
+        return
+      }
+
+      if (rawStatus === "reconciled") {
+        reasons[option.id] = "Cannot shift this schedule because it is finalized."
+        return
+      }
+
+      if (Math.abs(option.actualUsage) > 0.0001 || Math.abs(option.actualCommission) > 0.0001) {
+        reasons[option.id] = "Cannot shift this schedule because it is already matched."
+        return
+      }
+
+      const parsedDate = option.scheduleDate ? parseDateInputToUtcDate(option.scheduleDate) : null
+      if (!parsedDate) {
+        reasons[option.id] = "Cannot shift this schedule because it is missing a schedule date."
+        return
+      }
+
+      if (parsedDate.getUTCDate() !== 1) {
+        reasons[option.id] = "Cannot shift this schedule because its date is not normalized to the first of the month."
+      }
+    })
+
+    return reasons
+  }, [scheduleOptions])
+
+  const getStartDateIneligibilityReason = useCallback(
+    (id: string) => startDateIneligibilityReasons[id],
+    [startDateIneligibilityReasons]
   )
 
   const startDateSelectedDates = useMemo(() => {
     const dateById = new Map<string, Date>()
     const missingDateIds: string[] = []
 
-    eligibleSelectedScheduleOptions.forEach(option => {
+    startDateSelectedScheduleOptions.forEach(option => {
       const raw = option.scheduleDate ?? ""
       const parsed = raw ? parseDateInputToUtcDate(raw) : null
       if (!parsed) {
@@ -710,7 +887,7 @@ export function RevenueScheduleCreateModal({
     })
 
     return { dateById, missingDateIds }
-  }, [eligibleSelectedScheduleOptions])
+  }, [startDateSelectedScheduleOptions])
 
   const startDateBaselineDate = useMemo(() => {
     const dates = Array.from(startDateSelectedDates.dateById.values())
@@ -730,42 +907,49 @@ export function RevenueScheduleCreateModal({
     return diffMonthsUtc(startDateBaselineDate, startDateNewStartDate)
   }, [startDateBaselineDate, startDateNewStartDate])
 
-  const startDatePreviewRows = useMemo(() => {
+  const startDateLocalPreviewRows = useMemo<ChangeStartDatePreviewRow[]>(() => {
     if (startDateDeltaMonths === null) return []
 
-    const rows = eligibleSelectedScheduleOptions
+    const rows = startDateSelectedScheduleOptions
       .map(option => {
         const current = startDateSelectedDates.dateById.get(option.id) ?? null
         if (!current) return null
         const shifted = shiftScheduleDateMonthStartUtc(current, startDateDeltaMonths)
         return {
           id: option.id,
-          label: option.label,
+          scheduleNumber: option.scheduleNumber,
           currentDate: formatDateOnlyUtc(current),
           newDate: formatDateOnlyUtc(shifted),
+          status: "ready" as const,
+          productNameVendor: option.productNameVendor,
+          distributorName: option.distributorName,
+          vendorName: option.vendorName,
+          opportunityName: option.opportunityName,
+          conflicts: [],
         }
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row))
       .sort((a, b) => a.currentDate.localeCompare(b.currentDate))
 
     return rows
-  }, [eligibleSelectedScheduleOptions, startDateDeltaMonths, startDateSelectedDates.dateById])
+  }, [startDateDeltaMonths, startDateSelectedDates.dateById, startDateSelectedScheduleOptions])
+
+  const startDatePreviewRowsById = useMemo(() => {
+    const rows = new Map<string, ChangeStartDatePreviewRow>()
+    startDateLocalPreviewRows.forEach(row => {
+      rows.set(row.id, row)
+    })
+    startDatePreview?.rows.forEach(row => {
+      rows.set(row.id, row)
+    })
+    return rows
+  }, [startDateLocalPreviewRows, startDatePreview])
 
   const startDateBlockingReasons = useMemo(() => {
     const reasons: string[] = []
 
-    if (eligibleSelectedScheduleIds.length === 0) {
-      reasons.push("Select at least one eligible revenue schedule.")
-    }
-
-    if (eligibleSelectedScheduleIds.length > 0) {
-      if (startDateMissingProductCount > 0 || startDateProductIds.size !== 1) {
-        reasons.push("All selected schedules must belong to a single product.")
-      }
-
-      if (startDateSelectedDates.missingDateIds.length > 0) {
-        reasons.push("Some selected schedules are missing schedule dates and cannot be shifted.")
-      }
+    if (selectedScheduleIds.length === 0) {
+      reasons.push("Select at least one revenue schedule.")
     }
 
     if (!startDateNewStartDate) {
@@ -776,17 +960,31 @@ export function RevenueScheduleCreateModal({
       reasons.push("Enter a reason to continue.")
     }
 
-    return reasons
+    if (startDatePreview) {
+      reasons.push(...startDatePreview.blockingReasons)
+    }
+
+    if (startDatePreviewError) {
+      reasons.push(startDatePreviewError)
+    }
+
+    return Array.from(new Set(reasons))
   }, [
-    eligibleSelectedScheduleIds.length,
+    selectedScheduleIds.length,
     startDateForm.reason,
-    startDateMissingProductCount,
     startDateNewStartDate,
-    startDateProductIds.size,
-    startDateSelectedDates.missingDateIds.length,
+    startDatePreview,
+    startDatePreviewError,
   ])
 
-  const canSubmitStartDate = startDateBlockingReasons.length === 0
+  const canSubmitStartDate = canSubmitChangeStartDate({
+    selectedCount: selectedScheduleIds.length,
+    hasNewStartDate: Boolean(startDateNewStartDate),
+    reason: startDateForm.reason,
+    preview: startDatePreview,
+    previewLoading: startDatePreviewLoading,
+    previewError: startDatePreviewError,
+  })
 
   const eligibleSelectedCount = eligibleSelectedScheduleIds.length
   const ineligibleSelectedCount = selectedScheduleIds.length - eligibleSelectedCount
@@ -827,6 +1025,57 @@ export function RevenueScheduleCreateModal({
     setSelectedScheduleIds(prev => Array.from(new Set([...prev, ...initialStatusSelection])))
     setSelectionPrefillApplied(true)
   }, [initialStatusSelection, isOpen, selectionPrefillApplied])
+
+  useEffect(() => {
+    if (!isOpen || activeTab !== "startDate") {
+      setStartDatePreview(null)
+      setStartDatePreviewLoading(false)
+      setStartDatePreviewError(null)
+      return
+    }
+
+    if (selectedScheduleIds.length === 0 || !startDateNewStartDate) {
+      setStartDatePreview(null)
+      setStartDatePreviewLoading(false)
+      setStartDatePreviewError(null)
+      return
+    }
+
+    const controller = new AbortController()
+    setStartDatePreview(null)
+    setStartDatePreviewLoading(true)
+    setStartDatePreviewError(null)
+
+    void fetch("/api/revenue-schedules/bulk/change-start-date/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scheduleIds: selectedScheduleIds,
+        newStartDate: startDateForm.newStartDate,
+      }),
+      signal: controller.signal,
+    })
+      .then(async response => {
+        const body = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(body?.error ?? "Unable to preview start date changes")
+        }
+        setStartDatePreview(body as ChangeStartDatePreview)
+      })
+      .catch(err => {
+        if (controller.signal.aborted) return
+        const message = err instanceof Error ? err.message : "Unable to preview start date changes"
+        setStartDatePreview(null)
+        setStartDatePreviewError(message)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setStartDatePreviewLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [activeTab, isOpen, selectedScheduleIds, startDateForm.newStartDate, startDateNewStartDate])
 
   const primaryLabel = activeTab === "create"
     ? "Create"
@@ -1306,7 +1555,7 @@ export function RevenueScheduleCreateModal({
     if (!canSubmitStartDate) return
 
     const payload = {
-      scheduleIds: eligibleSelectedScheduleIds,
+      scheduleIds: selectedScheduleIds,
       newStartDate: startDateForm.newStartDate,
       reason: startDateForm.reason.trim()
     }
@@ -1323,12 +1572,15 @@ export function RevenueScheduleCreateModal({
       const body = await response.json().catch(() => null)
 
       if (!response.ok) {
+        if (body?.preview) {
+          setStartDatePreview(body.preview as ChangeStartDatePreview)
+        }
         const message = body?.error ?? "Unable to change start date"
         throw new Error(message)
       }
 
       const updatedCount: number =
-        typeof body?.updated === "number" ? body.updated : eligibleSelectedScheduleIds.length
+        typeof body?.updated === "number" ? body.updated : selectedScheduleIds.length
       const failedIds: string[] = Array.isArray(body?.failed) ? body.failed : []
       const errors = (body?.errors ?? null) as Record<string, string> | null
 
@@ -1371,9 +1623,10 @@ export function RevenueScheduleCreateModal({
     }
   }, [
     canSubmitStartDate,
-    eligibleSelectedScheduleIds,
     onClose,
     onSuccess,
+    selectedScheduleIds,
+    setStartDatePreview,
     showError,
     showSuccess,
     startDateForm.newStartDate,
@@ -1995,94 +2248,85 @@ export function RevenueScheduleCreateModal({
 
           {activeTab === "startDate" ? (
             <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-4">
+                  <div>
+                    <label className={labelCls}>New start date<span className="ml-1 text-red-500">*</span></label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={startDateForm.newStartDate}
+                        onChange={event => setStartDateForm(prev => ({ ...prev, newStartDate: event.target.value }))}
+                        className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
+                        style={{ colorScheme: "light" }}
+                      />
+                      <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
+                        {startDateForm.newStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className={labelCls}>Reason<span className="ml-1 text-red-500">*</span></label>
+                    <textarea
+                      value={startDateForm.reason}
+                      onChange={event => setStartDateForm(prev => ({ ...prev, reason: event.target.value }))}
+                      className="min-h-[56px] w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-xs leading-5 text-gray-900 focus:border-primary-500 focus:outline-none"
+                      placeholder="Provide the reason for this change"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-700">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-gray-900">Date shift preview — confirm before applying.</p>
+                      <p className="mt-1 text-[11px] text-gray-500">The earliest selected schedule anchors the shift for the rest of the chain.</p>
+                    </div>
+                    {startDatePreviewLoading ? (
+                      <span className="inline-flex items-center gap-2 text-[11px] text-gray-500">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" />
+                        Refreshing
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 space-y-1 text-[11px] text-gray-600">
+                    <p>Selected schedules: <span className="font-semibold text-gray-900">{selectedScheduleIds.length}</span></p>
+                    <p>Baseline date: <span className="font-semibold text-gray-900">{startDatePreview?.baselineDate ?? (startDateBaselineDate ? formatDateOnlyUtc(startDateBaselineDate) : "--")}</span></p>
+                    <p>New start date: <span className="font-semibold text-gray-900">{startDatePreview?.newStartDate ?? (startDateNewStartDate ? formatDateOnlyUtc(startDateNewStartDate) : "--")}</span></p>
+                    <p>Delta months: <span className="font-semibold text-gray-900">{startDatePreview?.deltaMonths ?? startDateDeltaMonths ?? "--"}</span></p>
+                    <p>Scope: <span className="font-semibold text-gray-900">One opportunity product chain only.</span></p>
+                    <p>Rule: <span className="font-semibold text-gray-900">All selected schedules shift by the same month delta.</span></p>
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <h3 className="text-sm font-semibold text-gray-900">Select schedules</h3>
-                <SelectedSchedulesTable
-                  options={selectedScheduleOptions}
+                <h3 className="text-sm font-semibold text-gray-900">Date shift preview — confirm before applying.</h3>
+                <p className="mt-1 text-xs text-gray-500">Select schedules and review the proposed dates inline before applying the shift.</p>
+                <StartDateSelectionTable
+                  options={scheduleOptions}
                   selectedIds={selectedScheduleIds}
-                  getIneligibilityReason={getIneligibilityReason}
+                  previewRowsById={startDatePreviewRowsById}
+                  previewLoading={startDatePreviewLoading}
+                  getIneligibilityReason={getStartDateIneligibilityReason}
                   onToggle={handleToggleSelectedSchedule}
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className={labelCls}>New start date<span className="ml-1 text-red-500">*</span></label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={startDateForm.newStartDate}
-                      onChange={event => setStartDateForm(prev => ({ ...prev, newStartDate: event.target.value }))}
-                      className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1.5 text-xs focus:outline-none focus:border-primary-500 [color-scheme:light] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-datetime-edit]:opacity-0"
-                      style={{ colorScheme: "light" }}
-                    />
-                    <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-xs text-gray-900">
-                      {startDateForm.newStartDate || <span className="text-gray-400">YYYY-MM-DD</span>}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700">
-                  <p className="font-semibold text-gray-900">Preview</p>
-                  <div className="mt-2 space-y-1 text-[11px] text-gray-600">
-                    <p>Selected: <span className="font-semibold text-gray-900">{eligibleSelectedScheduleIds.length}</span></p>
-                    <p>Baseline date: <span className="font-semibold text-gray-900">{startDateBaselineDate ? formatDateOnlyUtc(startDateBaselineDate) : "--"}</span></p>
-                    <p>New start date: <span className="font-semibold text-gray-900">{startDateNewStartDate ? formatDateOnlyUtc(startDateNewStartDate) : "--"}</span></p>
-                    <p>Delta months: <span className="font-semibold text-gray-900">{startDateDeltaMonths !== null ? startDateDeltaMonths : "--"}</span></p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className={labelCls}>Reason<span className="ml-1 text-red-500">*</span></label>
-                <textarea
-                  value={startDateForm.reason}
-                  onChange={event => setStartDateForm(prev => ({ ...prev, reason: event.target.value }))}
-                  className={textAreaCls}
-                  placeholder="Provide the reason for this change"
-                />
-              </div>
-
-              {startDateBlockingReasons.length > 0 ? (
+              {startDateBlockingReasons.length > 0 || (startDatePreview?.conflictSummaries.length ?? 0) > 0 ? (
                 <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
-                  <p className="font-semibold">Cannot apply change:</p>
+                  <p className="font-semibold">Resolve these issues before applying:</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     {startDateBlockingReasons.map(reason => (
                       <li key={reason}>{reason}</li>
                     ))}
+                    {(startDatePreview?.conflictSummaries ?? []).map(summary => (
+                      <li key={summary}>{summary}</li>
+                    ))}
                   </ul>
                 </div>
               ) : null}
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <h3 className="text-sm font-semibold text-gray-900">Shift preview</h3>
-                {startDatePreviewRows.length === 0 ? (
-                  <p className="mt-2 text-xs text-gray-600">Select schedules and a new start date to preview the shift.</p>
-                ) : (
-                  <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-gray-100 text-gray-600">
-                        <tr>
-                          <th className="px-3 py-2">Schedule</th>
-                          <th className="px-3 py-2">Current date</th>
-                          <th className="px-3 py-2">New date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {startDatePreviewRows.map(row => (
-                          <tr key={row.id} className="border-t border-gray-100 text-gray-700">
-                            <td className="px-3 py-2">
-                              <span className="font-semibold text-gray-900">{row.label}</span>
-                            </td>
-                            <td className="px-3 py-2">{row.currentDate}</td>
-                            <td className="px-3 py-2">{row.newDate}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
             </div>
           ) : null}
 

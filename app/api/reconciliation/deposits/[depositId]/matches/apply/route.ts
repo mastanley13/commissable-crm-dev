@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import {
   AuditAction,
@@ -6,8 +5,6 @@ import {
   DepositLineMatchStatus,
   DepositMatchGroupStatus,
   DepositMatchType,
-  RevenueScheduleBillingStatus,
-  RevenueScheduleBillingStatusSource,
   RevenueScheduleFlexClassification,
   RevenueScheduleFlexReasonCode,
   RevenueScheduleType,
@@ -30,6 +27,11 @@ import { getClientIP, getUserAgent, logAudit, logRevenueScheduleAudit } from "@/
 import { logMatchingMetric } from "@/lib/matching/metrics"
 import { generateChildRevenueScheduleName } from "@/lib/revenue-schedule-number"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
+import { findFutureSchedulesInScope, resolveScheduleScopeKey } from "@/lib/reconciliation/future-schedules"
+import {
+  createRevenueScheduleAdjustment,
+  roundMoney,
+} from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 type ApplyRequestBody = {
   matchType: MatchSelectionType
@@ -38,7 +40,7 @@ type ApplyRequestBody = {
   allocations?: MatchGroupAllocationInput[] | null
   varianceResolutions?: Array<{
     scheduleId: string
-    action: "Adjust" | "FlexProduct"
+    action: "AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild"
   }> | null
 }
 
@@ -49,17 +51,13 @@ function toNumber(value: unknown): number {
 
 const EPSILON = 0.005
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100
-}
-
 function isEffectivelyZero(value: number): boolean {
   return Math.abs(value) <= EPSILON
 }
 
 type NormalizedVarianceResolution = {
   scheduleId: string
-  action: "Adjust" | "FlexProduct"
+  action: "AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild"
 }
 
 function normalizeVarianceResolutionInput(value: ApplyRequestBody["varianceResolutions"]): NormalizedVarianceResolution[] {
@@ -68,7 +66,7 @@ function normalizeVarianceResolutionInput(value: ApplyRequestBody["varianceResol
   for (const item of value) {
     const scheduleId = typeof item?.scheduleId === "string" ? item.scheduleId.trim() : ""
     const action = item?.action
-    if (!scheduleId || (action !== "Adjust" && action !== "FlexProduct")) continue
+    if (!scheduleId || (action !== "AdjustCurrent" && action !== "AdjustCurrentAndFuture" && action !== "FlexChild")) continue
     out.push({ scheduleId, action })
   }
   return out
@@ -78,15 +76,12 @@ type ResolutionMutationArtifacts = {
   createdRevenueScheduleIds: string[]
   createdOpportunityProductIds: string[]
   createdProductIds: string[]
+  createdAdjustmentIds: string[]
+  affectedRevenueScheduleIds: string[]
+  resolutionType: string | null
 }
 
 type TransformedAllocation = MatchGroupPreviewAllocation
-
-function buildFlexProductScheduleNumber(parentScheduleNumber: string | null | undefined, fallbackId: string): string {
-  const trimmedParent = typeof parentScheduleNumber === "string" ? parentScheduleNumber.trim() : ""
-  const base = trimmedParent || fallbackId.trim() || fallbackId
-  return `FLEX-${base}`
-}
 
 function distributeResolvedAllocation(params: {
   allocations: TransformedAllocation[]
@@ -150,16 +145,13 @@ function distributeResolvedAllocation(params: {
   return transformed
 }
 
-async function createResolutionSchedule(
+async function loadBaseSchedule(
   tx: Prisma.TransactionClient,
   params: {
     tenantId: string
     scheduleId: string
-    action: "Adjust" | "FlexProduct"
-    splitUsage: number
-    splitCommission: number
   },
-): Promise<{ scheduleId: string } & ResolutionMutationArtifacts> {
+){
   const baseSchedule = await tx.revenueSchedule.findFirst({
     where: { tenantId: params.tenantId, id: params.scheduleId, deletedAt: null },
     select: {
@@ -172,8 +164,22 @@ async function createResolutionSchedule(
       productId: true,
       scheduleDate: true,
       scheduleNumber: true,
+      vendor: {
+        select: {
+          accountName: true,
+        },
+      },
+      distributor: {
+        select: {
+          accountName: true,
+        },
+      },
       product: {
         select: {
+          productCode: true,
+          partNumberVendor: true,
+          partNumberDistributor: true,
+          partNumberHouse: true,
           revenueType: true,
           productNameVendor: true,
           productFamilyHouse: true,
@@ -187,92 +193,31 @@ async function createResolutionSchedule(
     throw new Error("Revenue schedule not found")
   }
 
-  if (params.action === "Adjust") {
-    const isBonusLike = isBonusLikeProduct({
-      revenueType: baseSchedule.product?.revenueType ?? null,
-      productFamilyHouse: baseSchedule.product?.productFamilyHouse ?? null,
-      productNameHouse: baseSchedule.product?.productNameHouse ?? null,
-    })
-    const flexClassification = isBonusLike
-      ? RevenueScheduleFlexClassification.Bonus
-      : RevenueScheduleFlexClassification.Adjustment
-    const flexReasonCode = isBonusLike
-      ? RevenueScheduleFlexReasonCode.BonusVariance
-      : RevenueScheduleFlexReasonCode.OverageOutsideTolerance
+  return baseSchedule
+}
 
-    const createdSchedule = await tx.revenueSchedule.create({
-      data: {
-        tenantId: params.tenantId,
-        opportunityId: baseSchedule.opportunityId ?? null,
-        opportunityProductId: baseSchedule.opportunityProductId ?? null,
-        parentRevenueScheduleId: baseSchedule.id,
-        accountId: baseSchedule.accountId,
-        productId: baseSchedule.productId,
-        distributorAccountId: baseSchedule.distributorAccountId,
-        vendorAccountId: baseSchedule.vendorAccountId,
-        scheduleDate: baseSchedule.scheduleDate,
-        scheduleType: RevenueScheduleType.OneTime,
-        expectedUsage: roundMoney(params.splitUsage),
-        expectedCommission: roundMoney(params.splitCommission),
-        flexClassification,
-        flexReasonCode,
-        scheduleNumber: await generateChildRevenueScheduleName(tx as any, baseSchedule.id),
-        billingStatus: RevenueScheduleBillingStatus.Open,
-        billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
-        billingStatusUpdatedAt: new Date(),
-        billingStatusReason: `AutoFlexCreate:${String(flexClassification)}`,
-      } as any,
-      select: { id: true },
-    })
-
-    return {
-      scheduleId: createdSchedule.id,
-      createdRevenueScheduleIds: [createdSchedule.id],
-      createdOpportunityProductIds: [],
-      createdProductIds: [],
-    }
-  }
-
-  const createdProduct = await tx.product.create({
-    data: {
-      tenantId: params.tenantId,
-      productCode: `FLEX-${randomUUID().slice(0, 8).toUpperCase()}`,
-      productNameHouse: "Flex Product",
-      productNameVendor: baseSchedule.product?.productNameVendor ?? "Flex Product",
-      revenueType: baseSchedule.product?.revenueType ?? "MRC_ThirdParty",
-      isActive: true,
-      isFlex: true,
-      flexAccountId: baseSchedule.accountId,
-      flexType: "FlexProduct",
-      vendorAccountId: baseSchedule.vendorAccountId,
-      distributorAccountId: baseSchedule.distributorAccountId,
-    } as any,
-    select: { id: true },
+async function createFlexChildSchedule(
+  tx: Prisma.TransactionClient,
+  params: {
+    tenantId: string
+    scheduleId: string
+    splitUsage: number
+    splitCommission: number
+  },
+): Promise<{ scheduleId: string } & ResolutionMutationArtifacts> {
+  const baseSchedule = await loadBaseSchedule(tx, {
+    tenantId: params.tenantId,
+    scheduleId: params.scheduleId,
   })
-
-  const createdOpportunityProduct = baseSchedule.opportunityId
-    ? await tx.opportunityProduct.create({
-        data: {
-          tenantId: params.tenantId,
-          opportunityId: baseSchedule.opportunityId,
-          productId: createdProduct.id,
-          distributorAccountIdSnapshot: baseSchedule.distributorAccountId ?? null,
-          vendorAccountIdSnapshot: baseSchedule.vendorAccountId ?? null,
-          expectedUsage: roundMoney(params.splitUsage),
-          expectedCommission: roundMoney(params.splitCommission),
-        },
-        select: { id: true },
-      })
-    : null
 
   const createdSchedule = await tx.revenueSchedule.create({
     data: {
       tenantId: params.tenantId,
       opportunityId: baseSchedule.opportunityId ?? null,
-      opportunityProductId: createdOpportunityProduct?.id ?? null,
+      opportunityProductId: baseSchedule.opportunityProductId ?? null,
       parentRevenueScheduleId: baseSchedule.id,
       accountId: baseSchedule.accountId,
-      productId: createdProduct.id,
+      productId: baseSchedule.productId,
       distributorAccountId: baseSchedule.distributorAccountId,
       vendorAccountId: baseSchedule.vendorAccountId,
       scheduleDate: baseSchedule.scheduleDate,
@@ -281,11 +226,7 @@ async function createResolutionSchedule(
       expectedCommission: roundMoney(params.splitCommission),
       flexClassification: RevenueScheduleFlexClassification.FlexProduct,
       flexReasonCode: RevenueScheduleFlexReasonCode.OverageOutsideTolerance,
-      scheduleNumber: buildFlexProductScheduleNumber(baseSchedule.scheduleNumber, baseSchedule.id),
-      billingStatus: RevenueScheduleBillingStatus.InDispute,
-      billingStatusSource: RevenueScheduleBillingStatusSource.Auto,
-      billingStatusUpdatedAt: new Date(),
-      billingStatusReason: `AutoFlexCreate:${String(RevenueScheduleFlexClassification.FlexProduct)}`,
+      scheduleNumber: await generateChildRevenueScheduleName(tx as any, baseSchedule.id),
     } as any,
     select: { id: true },
   })
@@ -293,8 +234,130 @@ async function createResolutionSchedule(
   return {
     scheduleId: createdSchedule.id,
     createdRevenueScheduleIds: [createdSchedule.id],
-    createdOpportunityProductIds: createdOpportunityProduct ? [createdOpportunityProduct.id] : [],
-    createdProductIds: [createdProduct.id],
+    createdOpportunityProductIds: [],
+    createdProductIds: [],
+    createdAdjustmentIds: [],
+    affectedRevenueScheduleIds: [baseSchedule.id, createdSchedule.id],
+    resolutionType: "flex_child",
+  }
+}
+
+async function createAdjustmentForSchedule(
+  tx: Prisma.TransactionClient,
+  params: {
+    tenantId: string
+    scheduleId: string
+    matchGroupId: string
+    depositId: string
+    usageAmount: number
+    commissionAmount: number
+    applicationScope: "this_schedule_only" | "forward_adjustment"
+    createdById: string
+  },
+) {
+  const baseSchedule = await loadBaseSchedule(tx, {
+    tenantId: params.tenantId,
+    scheduleId: params.scheduleId,
+  })
+  const adjustmentType = params.applicationScope === "forward_adjustment" ? "adjustment_forward" : "adjustment_single"
+  const isBonusLike = isBonusLikeProduct({
+    revenueType: baseSchedule.product?.revenueType ?? null,
+    productFamilyHouse: baseSchedule.product?.productFamilyHouse ?? null,
+    productNameHouse: baseSchedule.product?.productNameHouse ?? null,
+  })
+
+  return createRevenueScheduleAdjustment(tx, {
+    tenantId: params.tenantId,
+    revenueScheduleId: baseSchedule.id,
+    matchGroupId: params.matchGroupId,
+    sourceDepositId: params.depositId,
+    adjustmentType,
+    applicationScope: params.applicationScope,
+    usageAmount: params.usageAmount,
+    commissionAmount: params.commissionAmount,
+    effectiveScheduleDate: baseSchedule.scheduleDate ?? null,
+    reason: isBonusLike ? "Bonus variance adjustment" : "Usage variance adjustment",
+    createdById: params.createdById,
+  })
+}
+
+async function applyForwardAdjustments(
+  tx: Prisma.TransactionClient,
+  params: {
+    tenantId: string
+    scheduleId: string
+    matchGroupId: string
+    depositId: string
+    usageAmount: number
+    commissionAmount: number
+    createdById: string
+  },
+): Promise<ResolutionMutationArtifacts> {
+  const baseSchedule = await loadBaseSchedule(tx, {
+    tenantId: params.tenantId,
+    scheduleId: params.scheduleId,
+  })
+
+  const affectedScheduleIds = [baseSchedule.id]
+  const createdAdjustmentIds: string[] = []
+
+  const currentAdjustment = await createAdjustmentForSchedule(tx, {
+    tenantId: params.tenantId,
+    scheduleId: baseSchedule.id,
+    matchGroupId: params.matchGroupId,
+    depositId: params.depositId,
+    usageAmount: params.usageAmount,
+    commissionAmount: params.commissionAmount,
+    applicationScope: "this_schedule_only",
+    createdById: params.createdById,
+  })
+  if (currentAdjustment?.id) {
+    createdAdjustmentIds.push(currentAdjustment.id)
+  }
+
+  if (baseSchedule.scheduleDate) {
+    const futureSchedules = await findFutureSchedulesInScope(tx, {
+      tenantId: params.tenantId,
+      baseScheduleId: baseSchedule.id,
+      baseScheduleDate: baseSchedule.scheduleDate,
+      scope: resolveScheduleScopeKey({
+        accountId: baseSchedule.accountId,
+        opportunityProductId: baseSchedule.opportunityProductId,
+        productId: baseSchedule.productId,
+        vendorAccountId: baseSchedule.vendorAccountId,
+        distributorAccountId: baseSchedule.distributorAccountId,
+        vendor: baseSchedule.vendor ?? null,
+        distributor: baseSchedule.distributor ?? null,
+        product: baseSchedule.product ?? null,
+      }),
+      excludeAllocated: true,
+    })
+
+    for (const futureSchedule of futureSchedules) {
+      const created = await createAdjustmentForSchedule(tx, {
+        tenantId: params.tenantId,
+        scheduleId: futureSchedule.id,
+        matchGroupId: params.matchGroupId,
+        depositId: params.depositId,
+        usageAmount: params.usageAmount,
+        commissionAmount: params.commissionAmount,
+        applicationScope: "forward_adjustment",
+        createdById: params.createdById,
+      })
+      if (created?.id) {
+        createdAdjustmentIds.push(created.id)
+      }
+      affectedScheduleIds.push(futureSchedule.id)
+    }
+  }
+
+  return {
+    createdRevenueScheduleIds: [],
+    createdOpportunityProductIds: [],
+    createdProductIds: [],
+    createdAdjustmentIds,
+    affectedRevenueScheduleIds: affectedScheduleIds,
+    resolutionType: "adjustment_forward",
   }
 }
 
@@ -379,7 +442,22 @@ export async function POST(
         createdRevenueScheduleIds: [],
         createdOpportunityProductIds: [],
         createdProductIds: [],
+        createdAdjustmentIds: [],
+        affectedRevenueScheduleIds: [],
+        resolutionType: null,
       }
+      const resolutionTypes = new Set<string>()
+
+      const group = await tx.depositMatchGroup.create({
+        data: {
+          tenantId,
+          depositId,
+          matchType: body.matchType as unknown as DepositMatchType,
+          status: DepositMatchGroupStatus.Applied,
+          createdByUserId: req.user.id,
+        },
+        select: { id: true, matchType: true, status: true, createdAt: true },
+      })
 
       for (const prompt of preview.variancePrompts) {
         const action = resolutionByScheduleId.get(prompt.scheduleId)
@@ -403,29 +481,68 @@ export async function POST(
           )
         }
 
-        const created = await createResolutionSchedule(tx, {
+        if (action === "FlexChild") {
+          const created = await createFlexChildSchedule(tx, {
+            tenantId,
+            scheduleId: prompt.scheduleId,
+            splitUsage: prompt.usageOverage,
+            splitCommission: prompt.commissionOverage,
+          })
+
+          resolutionArtifacts.createdRevenueScheduleIds.push(...created.createdRevenueScheduleIds)
+          resolutionArtifacts.createdOpportunityProductIds.push(...created.createdOpportunityProductIds)
+          resolutionArtifacts.createdProductIds.push(...created.createdProductIds)
+          resolutionArtifacts.affectedRevenueScheduleIds.push(...created.affectedRevenueScheduleIds)
+          resolutionTypes.add(created.resolutionType ?? "flex_child")
+
+          const untouchedAllocations = transformedAllocations.filter(allocation => allocation.scheduleId !== prompt.scheduleId)
+          const redistributedAllocations = distributeResolvedAllocation({
+            allocations: allocationsForSchedule,
+            splitUsage: prompt.usageOverage,
+            splitCommission: prompt.commissionOverage,
+            childScheduleId: created.scheduleId,
+          })
+
+          transformedAllocations.length = 0
+          transformedAllocations.push(...untouchedAllocations, ...redistributedAllocations)
+          continue
+        }
+
+        if (action === "AdjustCurrentAndFuture") {
+          const created = await applyForwardAdjustments(tx, {
+            tenantId,
+            scheduleId: prompt.scheduleId,
+            matchGroupId: group.id,
+            depositId,
+            usageAmount: prompt.usageOverage,
+            commissionAmount: prompt.commissionOverage,
+            createdById: req.user.id,
+          })
+          resolutionArtifacts.createdAdjustmentIds.push(...created.createdAdjustmentIds)
+          resolutionArtifacts.affectedRevenueScheduleIds.push(...created.affectedRevenueScheduleIds)
+          resolutionTypes.add(created.resolutionType ?? "adjustment_forward")
+          continue
+        }
+
+        const createdAdjustment = await createAdjustmentForSchedule(tx, {
           tenantId,
           scheduleId: prompt.scheduleId,
-          action,
-          splitUsage: prompt.usageOverage,
-          splitCommission: prompt.commissionOverage,
+          matchGroupId: group.id,
+          depositId,
+          usageAmount: prompt.usageOverage,
+          commissionAmount: prompt.commissionOverage,
+          applicationScope: "this_schedule_only",
+          createdById: req.user.id,
         })
-
-        resolutionArtifacts.createdRevenueScheduleIds.push(...created.createdRevenueScheduleIds)
-        resolutionArtifacts.createdOpportunityProductIds.push(...created.createdOpportunityProductIds)
-        resolutionArtifacts.createdProductIds.push(...created.createdProductIds)
-
-        const untouchedAllocations = transformedAllocations.filter(allocation => allocation.scheduleId !== prompt.scheduleId)
-        const redistributedAllocations = distributeResolvedAllocation({
-          allocations: allocationsForSchedule,
-          splitUsage: prompt.usageOverage,
-          splitCommission: prompt.commissionOverage,
-          childScheduleId: created.scheduleId,
-        })
-
-        transformedAllocations.length = 0
-        transformedAllocations.push(...untouchedAllocations, ...redistributedAllocations)
+        if (createdAdjustment?.id) {
+          resolutionArtifacts.createdAdjustmentIds.push(createdAdjustment.id)
+        }
+        resolutionArtifacts.affectedRevenueScheduleIds.push(prompt.scheduleId)
+        resolutionTypes.add("adjustment_single")
       }
+
+      resolutionArtifacts.resolutionType =
+        resolutionTypes.size === 1 ? Array.from(resolutionTypes)[0] ?? null : resolutionTypes.size > 1 ? "mixed" : null
 
       const allocationsToPersist = transformedAllocations.filter(
         allocation => !isEffectivelyZero(allocation.usageAmount) || !isEffectivelyZero(allocation.commissionAmount),
@@ -435,6 +552,7 @@ export async function POST(
           ...preview.scheduleIds,
           ...transformedAllocations.map(allocation => allocation.scheduleId),
           ...resolutionArtifacts.createdRevenueScheduleIds,
+          ...resolutionArtifacts.affectedRevenueScheduleIds,
         ]),
       )
 
@@ -445,17 +563,6 @@ export async function POST(
               select: { id: true, status: true, actualUsage: true, actualCommission: true },
             })
           : []
-
-      const group = await tx.depositMatchGroup.create({
-        data: {
-          tenantId,
-          depositId,
-          matchType: body.matchType as unknown as DepositMatchType,
-          status: DepositMatchGroupStatus.Applied,
-          createdByUserId: req.user.id,
-        },
-        select: { id: true, matchType: true, status: true, createdAt: true },
-      })
 
       const existingMatchesBefore: Array<{
         id: string
@@ -584,6 +691,19 @@ export async function POST(
         }
       }
 
+      await tx.depositMatchGroup.update({
+        where: { id: group.id },
+        data: {
+          resolutionType: resolutionArtifacts.resolutionType,
+          createdRevenueScheduleIds: resolutionArtifacts.createdRevenueScheduleIds,
+          createdOpportunityProductIds: resolutionArtifacts.createdOpportunityProductIds,
+          createdProductIds: resolutionArtifacts.createdProductIds,
+          createdAdjustmentIds: resolutionArtifacts.createdAdjustmentIds,
+          affectedRevenueScheduleIds: Array.from(new Set(resolutionArtifacts.affectedRevenueScheduleIds)),
+        } as any,
+        select: { id: true },
+      })
+
       const recomputedLines = []
       for (const lineId of preview.lineIds) {
         const updated = await recomputeDepositLineItemAllocations(tx, lineId, tenantId)
@@ -670,9 +790,12 @@ export async function POST(
         existingMatchCount: (result as any).existingMatchesBefore?.length ?? 0,
         existingMatchesBefore: (result as any).existingMatchesBefore ?? [],
         autoFillAuditLogIds: (result as any).autoFillAuditLogIds ?? [],
+        resolutionType: (result as any).resolutionArtifacts?.resolutionType ?? null,
         createdRevenueScheduleIds: (result as any).resolutionArtifacts?.createdRevenueScheduleIds ?? [],
         createdOpportunityProductIds: (result as any).resolutionArtifacts?.createdOpportunityProductIds ?? [],
         createdProductIds: (result as any).resolutionArtifacts?.createdProductIds ?? [],
+        createdAdjustmentIds: (result as any).resolutionArtifacts?.createdAdjustmentIds ?? [],
+        affectedRevenueScheduleIds: (result as any).resolutionArtifacts?.affectedRevenueScheduleIds ?? [],
         varianceResolutions: requestedResolutions,
       },
     })

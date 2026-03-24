@@ -18,7 +18,7 @@ type FieldUpdateUndoPayload = {
 type CreatedEntityUndoPayload = {
   kind: "created_entity"
   relatedRevenueScheduleIds?: string[]
-  deleteStrategy: "soft_delete"
+  deleteStrategy: "soft_delete" | "hard_delete"
   relatedOpportunityProductIds?: string[]
   resolveFlexReviewItem?: boolean
 }
@@ -116,7 +116,7 @@ export async function recordCreatedEntityUndoLog(
     depositLineItemId: string
     targetEntityName: string
     targetEntityId: string
-    deleteStrategy?: "soft_delete"
+    deleteStrategy?: "soft_delete" | "hard_delete"
     relatedRevenueScheduleIds?: Array<string | null | undefined>
     relatedOpportunityProductIds?: Array<string | null | undefined>
     resolveFlexReviewItem?: boolean
@@ -270,6 +270,12 @@ async function applyCreatedEntityRollback(
         },
       })
     }
+  }
+
+  if (entry.targetEntityName === "RevenueScheduleAdjustment" && payload.deleteStrategy === "hard_delete") {
+    await (client as any).revenueScheduleAdjustment.deleteMany({
+      where: { tenantId: entry.tenantId, id: entry.targetEntityId },
+    })
   }
 }
 

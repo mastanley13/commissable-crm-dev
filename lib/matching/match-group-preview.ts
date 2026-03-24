@@ -5,10 +5,95 @@ import { analyzeBundleLineRates, formatRatePercentFromFraction, roundMoney, toNu
 import { findCrossDealGuardIssues } from "@/lib/matching/cross-deal-guard"
 import { evaluateFlexDecision } from "@/lib/flex/revenue-schedule-flex-decision"
 import { isBonusLikeProduct } from "@/lib/flex/bonus-detection"
+import { findFutureSchedulesInScope, resolveScheduleScopeKey } from "@/lib/reconciliation/future-schedules"
+import { listRevenueScheduleAdjustmentSums } from "@/lib/reconciliation/revenue-schedule-adjustments"
 
 type PrismaClientOrTx = PrismaClient | Prisma.TransactionClient
 
 const EPSILON = 0.005
+
+const matchGroupPreviewLineSelect = Prisma.validator<Prisma.DepositLineItemSelect>()({
+  id: true,
+  lineNumber: true,
+  createdAt: true,
+  status: true,
+  reconciled: true,
+  accountId: true,
+  accountIdVendor: true,
+  accountNameRaw: true,
+  customerIdVendor: true,
+  orderIdVendor: true,
+  locationId: true,
+  customerPurchaseOrder: true,
+  usage: true,
+  commission: true,
+  usageAllocated: true,
+  usageUnallocated: true,
+  commissionAllocated: true,
+  commissionUnallocated: true,
+  commissionRate: true,
+  account: {
+    select: {
+      accountName: true,
+      accountLegalName: true,
+    },
+  },
+})
+
+const matchGroupPreviewScheduleSelect = Prisma.validator<Prisma.RevenueScheduleSelect>()({
+  id: true,
+  accountId: true,
+  opportunityId: true,
+  opportunityProductId: true,
+  productId: true,
+  vendorAccountId: true,
+  distributorAccountId: true,
+  scheduleNumber: true,
+  scheduleDate: true,
+  createdAt: true,
+  expectedUsage: true,
+  usageAdjustment: true,
+  actualUsageAdjustment: true,
+  expectedCommission: true,
+  expectedCommissionAdjustment: true,
+  actualCommissionAdjustment: true,
+  vendor: {
+    select: {
+      accountName: true,
+    },
+  },
+  distributor: {
+    select: {
+      accountName: true,
+    },
+  },
+  product: {
+    select: {
+      productCode: true,
+      partNumberVendor: true,
+      partNumberDistributor: true,
+      partNumberHouse: true,
+      revenueType: true,
+      productFamilyHouse: true,
+      productNameHouse: true,
+    },
+  },
+  account: {
+    select: {
+      accountName: true,
+      accountLegalName: true,
+    },
+  },
+  opportunity: {
+    select: {
+      id: true,
+      name: true,
+    },
+  },
+})
+
+type MatchGroupPreviewLineRecord = Prisma.DepositLineItemGetPayload<{ select: typeof matchGroupPreviewLineSelect }>
+type MatchGroupPreviewScheduleRecord = Prisma.RevenueScheduleGetPayload<{ select: typeof matchGroupPreviewScheduleSelect }>
 
 function isEffectivelyZero(value: number): boolean {
   return Math.abs(value) <= EPSILON
@@ -102,7 +187,9 @@ export type MatchGroupVariancePrompt = {
   commissionOverage: number
   usageToleranceAmount: number
   commissionToleranceAmount: number
-  allowedPromptOptions: Array<"Adjust" | "FlexProduct">
+  allowedPromptOptions: Array<"AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild">
+  nextFutureScheduleNumber: string | null
+  futureScheduleCount: number
   message: string
 }
 
@@ -336,77 +423,19 @@ export async function buildMatchGroupPreview(
     }
   }
 
-  const [lines, schedules] = await Promise.all([
-    client.depositLineItem.findMany({
-      where: { tenantId: params.tenantId, depositId: params.depositId, id: { in: lineIds } },
-      select: {
-        id: true,
-        lineNumber: true,
-        createdAt: true,
-        status: true,
-        reconciled: true,
-        accountId: true,
-        accountIdVendor: true,
-        accountNameRaw: true,
-        customerIdVendor: true,
-        orderIdVendor: true,
-        locationId: true,
-        customerPurchaseOrder: true,
-        usage: true,
-        commission: true,
-        usageAllocated: true,
-        usageUnallocated: true,
-        commissionAllocated: true,
-        commissionUnallocated: true,
-        commissionRate: true,
-        account: {
-          select: {
-            accountName: true,
-            accountLegalName: true,
-          },
-        },
-      },
-    }),
-    client.revenueSchedule.findMany({
-      where: {
-        tenantId: params.tenantId,
-        id: { in: scheduleIds },
-        deletedAt: null,
-      } as any,
-      select: {
-        id: true,
-        accountId: true,
-        opportunityId: true,
-        scheduleNumber: true,
-        scheduleDate: true,
-        createdAt: true,
-        expectedUsage: true,
-        usageAdjustment: true,
-        actualUsageAdjustment: true,
-        expectedCommission: true,
-        actualCommissionAdjustment: true,
-        product: {
-          select: {
-            revenueType: true,
-            productFamilyHouse: true,
-            productNameHouse: true,
-          },
-        },
-        account: {
-          select: {
-            accountName: true,
-            accountLegalName: true,
-          },
-        },
-        opportunity: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    }),
-  ])
+  const lines: MatchGroupPreviewLineRecord[] = await client.depositLineItem.findMany({
+    where: { tenantId: params.tenantId, depositId: params.depositId, id: { in: lineIds } },
+    select: matchGroupPreviewLineSelect,
+  })
+
+  const schedules: MatchGroupPreviewScheduleRecord[] = await client.revenueSchedule.findMany({
+    where: {
+      tenantId: params.tenantId,
+      id: { in: scheduleIds },
+      deletedAt: null,
+    },
+    select: matchGroupPreviewScheduleSelect,
+  })
 
   const lineLabelMap = new Map<string, string>()
   for (const line of lines) {
@@ -414,7 +443,7 @@ export async function buildMatchGroupPreview(
   }
   const scheduleLabelMap = new Map<string, string>()
   for (const schedule of schedules) {
-    scheduleLabelMap.set(schedule.id, getScheduleDisplayLabel(schedule))
+    scheduleLabelMap.set(String((schedule as any).id), getScheduleDisplayLabel(schedule as any))
   }
 
   const foundLineIds = new Set(lines.map(row => row.id))
@@ -496,13 +525,29 @@ export async function buildMatchGroupPreview(
     }
   }
 
+  const ledgerAdjustmentSums = await listRevenueScheduleAdjustmentSums(client, {
+    tenantId: params.tenantId,
+    revenueScheduleIds: schedules.map(schedule => schedule.id),
+  })
+
   const scheduleMeta = schedules.map(schedule => {
-    const expectedUsageNet = toNumber(schedule.expectedUsage) + toNumber(schedule.usageAdjustment)
-    const expectedCommissionNet = toNumber(schedule.expectedCommission)
+    const ledgerUsageAdjustment = toNumber(ledgerAdjustmentSums.get(schedule.id)?.usageAmount)
+    const ledgerCommissionAdjustment = toNumber(ledgerAdjustmentSums.get(schedule.id)?.commissionAmount)
+    const expectedUsageNet = toNumber(schedule.expectedUsage) + toNumber(schedule.usageAdjustment) + ledgerUsageAdjustment
+    const expectedCommissionNet =
+      toNumber(schedule.expectedCommission) +
+      toNumber(schedule.expectedCommissionAdjustment ?? schedule.actualCommissionAdjustment) +
+      ledgerCommissionAdjustment
     const actualUsageAdjustment = toNumber(schedule.actualUsageAdjustment)
     const actualCommissionAdjustment = toNumber(schedule.actualCommissionAdjustment)
     return {
       id: schedule.id,
+      accountId: schedule.accountId,
+      opportunityId: schedule.opportunityId,
+      opportunityProductId: schedule.opportunityProductId ?? null,
+      productId: schedule.productId ?? null,
+      vendorAccountId: schedule.vendorAccountId ?? null,
+      distributorAccountId: schedule.distributorAccountId ?? null,
       scheduleNumber: schedule.scheduleNumber ?? null,
       scheduleDate: schedule.scheduleDate,
       createdAt: schedule.createdAt,
@@ -511,6 +556,10 @@ export async function buildMatchGroupPreview(
       actualUsageAdjustment,
       actualCommissionAdjustment,
       product: schedule.product ?? null,
+      vendor: schedule.vendor ?? null,
+      distributor: schedule.distributor ?? null,
+      account: schedule.account ?? null,
+      opportunity: schedule.opportunity ?? null,
     }
   })
 
@@ -756,8 +805,8 @@ export async function buildMatchGroupPreview(
         _sum: { usageAmount: true, commissionAmount: true },
         _count: true,
       })
-      const actualUsage = toNumber(aggregation._sum.usageAmount)
-      const actualCommission = toNumber(aggregation._sum.commissionAmount)
+      const actualUsage = toNumber(aggregation._sum?.usageAmount)
+      const actualCommission = toNumber(aggregation._sum?.commissionAmount)
       const matchCount = typeof aggregation._count === "number" ? aggregation._count : 0
       return { scheduleId: schedule.id, actualUsage, actualCommission, matchCount }
     }),
@@ -846,6 +895,42 @@ export async function buildMatchGroupPreview(
       })
 
       if (requiresResolution) {
+        let nextFutureScheduleNumber: string | null = null
+        let futureScheduleCount = 0
+
+        if (schedule.scheduleDate) {
+          try {
+            const futureSchedules = await findFutureSchedulesInScope(client, {
+              tenantId: params.tenantId,
+              baseScheduleId: schedule.id,
+              baseScheduleDate: schedule.scheduleDate,
+              scope: resolveScheduleScopeKey({
+                accountId: schedule.accountId,
+                opportunityProductId: schedule.opportunityProductId,
+                productId: schedule.productId,
+                vendorAccountId: schedule.vendorAccountId,
+                distributorAccountId: schedule.distributorAccountId,
+                vendor: schedule.vendor ?? null,
+                distributor: schedule.distributor ?? null,
+                product: schedule.product ?? null,
+              }),
+              excludeAllocated: true,
+            })
+            futureScheduleCount = futureSchedules.length
+            nextFutureScheduleNumber = futureSchedules[0]?.scheduleNumber ?? null
+          } catch (error) {
+            console.warn("Failed to load future schedule scope for match-group variance preview", error)
+          }
+        }
+
+        const allowedPromptOptions: Array<"AdjustCurrent" | "AdjustCurrentAndFuture" | "FlexChild"> = [
+          "AdjustCurrent",
+          "AdjustCurrentAndFuture",
+        ]
+        if (flexDecision.allowedPromptOptions.includes("FlexProduct")) {
+          allowedPromptOptions.push("FlexChild")
+        }
+
         variancePrompts.push({
           scheduleId: schedule.id,
           scheduleNumber: schedule.scheduleNumber?.trim() || schedule.id,
@@ -860,9 +945,9 @@ export async function buildMatchGroupPreview(
           commissionOverage: roundMoney(commissionDifferenceAfter < -EPSILON ? Math.abs(commissionDifferenceAfter) : 0),
           usageToleranceAmount: roundMoney(flexDecision.usageToleranceAmount),
           commissionToleranceAmount: roundMoney(commissionToleranceAmount),
-          allowedPromptOptions: flexDecision.allowedPromptOptions.filter(
-            option => option === "Adjust" || option === "FlexProduct",
-          ),
+          allowedPromptOptions,
+          nextFutureScheduleNumber,
+          futureScheduleCount,
           message: `${schedLabel} exceeds variance tolerance and needs a resolution before this match can be applied.`,
         })
       }

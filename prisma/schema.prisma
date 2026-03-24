@@ -50,6 +50,7 @@ model Tenant {
   depositLineItems        DepositLineItem[]
   depositLineMatches      DepositLineMatch[]
   depositMatchGroups      DepositMatchGroup[]
+  revenueScheduleAdjustments RevenueScheduleAdjustment[]
   revenueTypes            RevenueType[]
   systemSettings          SystemSetting[]
   userSettings            UserSetting[]
@@ -182,6 +183,8 @@ model User {
   sessions                    UserSession[]
   depositMatchGroupsCreated   DepositMatchGroup[]      @relation("DepositMatchGroupCreatedByUser")
   depositMatchGroupsUndone    DepositMatchGroup[]      @relation("DepositMatchGroupUndoneByUser")
+  revenueScheduleAdjustmentsCreated RevenueScheduleAdjustment[] @relation("RevenueScheduleAdjustmentCreatedBy")
+  revenueScheduleAdjustmentsReversed RevenueScheduleAdjustment[] @relation("RevenueScheduleAdjustmentReversedByUser")
 
   @@unique([tenantId, email])
   @@index([tenantId, roleId])
@@ -747,6 +750,7 @@ model RevenueSchedule {
   tickets                    Ticket[]
   commissionPayouts          CommissionPayout[]
   depositLineMatches         DepositLineMatch[]
+  scheduleAdjustments        RevenueScheduleAdjustment[]
   primaryDepositLineItems    DepositLineItem[]     @relation("PrimaryScheduleForDepositLine")
   parentRevenueSchedule      RevenueSchedule?      @relation("RevenueScheduleParent", fields: [parentRevenueScheduleId], references: [id])
   childRevenueSchedules      RevenueSchedule[]     @relation("RevenueScheduleParent")
@@ -917,6 +921,12 @@ model DepositMatchGroup {
   depositId       String                  @db.Uuid
   matchType       DepositMatchType
   status          DepositMatchGroupStatus @default(Applied)
+  resolutionType  String?
+  createdRevenueScheduleIds Json?
+  createdOpportunityProductIds Json?
+  createdProductIds Json?
+  createdAdjustmentIds Json?
+  affectedRevenueScheduleIds Json?
   createdByUserId String                  @db.Uuid
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
@@ -929,9 +939,39 @@ model DepositMatchGroup {
   createdByUser   User                    @relation("DepositMatchGroupCreatedByUser", fields: [createdByUserId], references: [id])
   undoneByUser    User?                   @relation("DepositMatchGroupUndoneByUser", fields: [undoneByUserId], references: [id])
   matches         DepositLineMatch[]
+  adjustments     RevenueScheduleAdjustment[]
 
   @@index([tenantId, depositId])
   @@index([tenantId, createdAt])
+}
+
+model RevenueScheduleAdjustment {
+  id                    String             @id @default(uuid()) @db.Uuid
+  tenantId              String             @db.Uuid
+  revenueScheduleId     String             @db.Uuid
+  matchGroupId          String?            @db.Uuid
+  sourceDepositId       String?            @db.Uuid
+  sourceDepositLineItemId String?          @db.Uuid
+  adjustmentType        String
+  applicationScope      String?
+  usageAmount           Decimal?           @db.Decimal(16, 2)
+  commissionAmount      Decimal?           @db.Decimal(16, 2)
+  effectiveScheduleDate DateTime?
+  reason                String?
+  createdById           String?            @db.Uuid
+  createdAt             DateTime           @default(now())
+  reversedAt            DateTime?
+  reversedByUserId      String?            @db.Uuid
+
+  tenant                Tenant             @relation(fields: [tenantId], references: [id])
+  revenueSchedule       RevenueSchedule    @relation(fields: [revenueScheduleId], references: [id])
+  matchGroup            DepositMatchGroup? @relation(fields: [matchGroupId], references: [id], onDelete: SetNull)
+  createdBy             User?              @relation("RevenueScheduleAdjustmentCreatedBy", fields: [createdById], references: [id])
+  reversedByUser        User?              @relation("RevenueScheduleAdjustmentReversedByUser", fields: [reversedByUserId], references: [id])
+
+  @@index([tenantId, revenueScheduleId, reversedAt])
+  @@index([tenantId, matchGroupId])
+  @@index([tenantId, sourceDepositId, sourceDepositLineItemId])
 }
 
 model ReconciliationUndoLog {

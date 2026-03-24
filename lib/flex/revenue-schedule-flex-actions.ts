@@ -45,12 +45,6 @@ function resolveRevenueType(baseRevenueType: unknown): string {
   return typeof baseRevenueType === "string" && baseRevenueType.trim() ? baseRevenueType : "MRC_ThirdParty"
 }
 
-function buildFlexChildScheduleNumber(parentScheduleNumber: string | null | undefined, fallbackId: string): string {
-  const trimmedParent = typeof parentScheduleNumber === "string" ? parentScheduleNumber.trim() : ""
-  const base = trimmedParent || fallbackId.trim() || fallbackId
-  return `FLEX-${base}`
-}
-
 export type FlexResolveAction = "Adjust" | "FlexProduct" | "Manual"
 
 export interface FlexExecutionSummary {
@@ -544,7 +538,6 @@ export async function executeFlexProductSplit(
       distributorAccountId: true,
       vendorAccountId: true,
       scheduleDate: true,
-      scheduleNumber: true,
       product: { select: { revenueType: true, productNameVendor: true, productNameHouse: true } },
     },
   })
@@ -594,7 +587,6 @@ export async function executeFlexProductSplit(
     vendorAccountId: baseSchedule.vendorAccountId ?? null,
     productId: product.id,
     scheduleDate: baseSchedule.scheduleDate ?? null,
-    scheduleNumberOverride: buildFlexChildScheduleNumber(baseSchedule.scheduleNumber, baseSchedule.id),
     flexClassification: RevenueScheduleFlexClassification.FlexProduct,
     flexReasonCode: reasonCode,
     flexSourceDepositId: depositId,

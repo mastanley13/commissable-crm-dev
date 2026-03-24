@@ -1,0 +1,17 @@
+Wave,Ticket ID,Owner,Area,Depends On,Primary Exit Criteria
+Wave 0,CRM-REC-104,Agent B,Investigation,None,12710 documented as duplicate / legitimate / unresolved
+Wave 0,CRM-REC-102 (inventory),Agent B,Legacy flex inventory,None,Legacy FLEX-* and orphan .N rows inventoried with examples
+Wave 1A,CRM-RS-101,Agent A,Change Start Date,None,Current and New Schedule Date columns displayed inline
+Wave 1A,CRM-RS-102,Agent A,Change Start Date,CRM-RS-101,Live collision detection and plain-English row-level errors
+Wave 1A,CRM-RS-103,Agent A,Change Start Date,CRM-RS-102,Apply disabled whenever any collision exists
+Wave 1A,CRM-RS-104,Agent A,Change Start Date,CRM-RS-101/102/103,Two-column layout and persistent Date shift preview complete
+Wave 1B,CRM-REC-105,Agent B,Reconciliation foundation,None,Match-group metadata persists resolution type and created/affected ids
+Wave 1B,CRM-REC-101,Agent B,Reconciliation foundation,CRM-REC-105 recommended,No flex child persisted during preview or option selection
+Wave 1B,CRM-REC-110,Agent B,Adjustment ledger,None,Odd-amount / multi-unit adjustments stored as total-dollar ledger entries
+Wave 2,CRM-REC-106,Agent C,Scenario A,"CRM-REC-105, CRM-REC-110",Single-schedule adjustment flow works and leaves price_each unchanged
+Wave 2,CRM-REC-107,Agent C,Scenario B,"CRM-REC-105, CRM-REC-110",Current + future adjustment flow works and explicitly includes 12699
+Wave 2,CRM-REC-108,Agent C,Scenario C,"CRM-REC-105, CRM-REC-101",Child flex schedule created only on confirm in [parent].[sequence] format
+Wave 2,CRM-REC-109,Agent C,Shared UX/copy,CRM-REC-106/107/108,Step 2/3 copy matches March ledger wording across A/B/C
+Wave 3,CRM-REC-103,Agent D,Undo / reversal,"CRM-REC-105, CRM-REC-106/107/108",Undo deletes only artifacts owned by the same match group
+Wave 3,CRM-REC-102 (cleanup),Agent D,Cleanup,"Wave 0 inventory, CRM-REC-103",Cleanup dry-run report produced before live mode
+Wave 3,CRM-REC-104 (follow-through),Agent D,Suppression follow-through,Wave 0 investigation proof,12710 suppressed only if duplicate status is confirmed
