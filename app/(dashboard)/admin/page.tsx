@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive } from 'lucide-react'
+import { useAuth } from '@/lib/auth-context'
+import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive, FlaskConical } from 'lucide-react'
 import { AdminSystemOverview } from '@/components/admin-system-overview'
 
 const adminSections = [
@@ -74,10 +75,27 @@ const adminSections = [
     href: '/admin/prototypes',
     icon: Beaker,
     color: 'bg-amber-500'
+  },
+  {
+    title: 'Playwright Results',
+    description: 'Review the latest reconciliation browser automation outcomes',
+    href: '/admin/playwright',
+    icon: FlaskConical,
+    color: 'bg-cyan-600',
+    requiredPermission: 'admin.playwright.read'
   }
 ]
 
 export default function AdminPage() {
+  const { hasPermission } = useAuth()
+  const visibleSections = adminSections.filter(section => {
+    if (!('requiredPermission' in section) || !section.requiredPermission) {
+      return true
+    }
+
+    return hasPermission(section.requiredPermission)
+  })
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 p-6">
@@ -87,7 +105,7 @@ export default function AdminPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {adminSections.map((section, index) => {
+          {visibleSections.map((section, index) => {
             const Icon = section.icon
             return (
               <Link key={index} href={section.href}>

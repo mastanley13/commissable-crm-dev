@@ -1,0 +1,27 @@
+{
+  "scenarioId": "RS-001",
+  "title": "Exact Match All Key Fields",
+  "lane": "deterministic",
+  "status": "pass",
+  "startedAt": "2026-04-07T14:52:17.959Z",
+  "finishedAt": "2026-04-07T14:52:22.391Z",
+  "notes": [
+    "Verified against the completed duplicate TC-01 deposit already present in the current TEST DB.",
+    "Deposit detail and API payload both report Completed / reconciled final state with zero remaining allocation."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-001-finalized-detail",
+      "path": "test-results/reconciliation-suite--RS-0-b942f--Exact-Match-All-Key-Fields-chromium/rs-001-finalized-detail.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "tc01-completed-final-state",
+    "depositId": "3880182d-de21-4edc-935f-72c4921a88c5",
+    "lineId": "96399ae3-41b0-44f7-94d7-5a94d129294e",
+    "scheduleIds": [
+      "8fae04fd-1277-4756-bf44-5afd3fd21e73"
+    ]
+  }
+}

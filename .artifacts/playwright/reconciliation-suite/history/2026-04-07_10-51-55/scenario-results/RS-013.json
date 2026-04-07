@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-013",
+  "title": "Deposit reports zero usage where schedule expects usage",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:19.513Z",
+  "finishedAt": "2026-04-07T14:53:19.719Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view.",
+    "Marked blocked instead of failed because this indicates runtime-fixture drift or environment mismatch, not a confirmed product regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-013-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-756cb-here-schedule-expects-usage-chromium/rs-013-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1to1-candidate-review",
+    "depositId": "6eef0836-1147-47ed-8413-e1d089268cf0",
+    "lineId": "4868fa49-89f5-44b7-ab5a-803ca5816e32",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

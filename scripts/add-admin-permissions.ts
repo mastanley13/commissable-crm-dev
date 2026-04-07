@@ -53,6 +53,11 @@ async function addAdminPermissions() {
       category: 'Admin' as any
     },
     {
+      code: 'admin.playwright.read',
+      name: 'View Playwright Results',
+      category: 'Admin' as any
+    },
+    {
       code: 'contacts.read',
       name: 'View Contacts',
       category: 'Contacts' as any

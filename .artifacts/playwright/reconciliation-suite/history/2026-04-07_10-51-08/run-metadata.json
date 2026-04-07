@@ -1,0 +1,31 @@
+{
+  "runId": "2026-04-07_10-51-08",
+  "runDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08",
+  "suiteName": "reconciliation-suite",
+  "startedAt": "2026-04-07T14:51:08.993Z",
+  "finishedAt": "2026-04-07T14:51:44.880Z",
+  "exitCode": 0,
+  "baseURL": "http://127.0.0.1:3000",
+  "authFile": ".artifacts/playwright/auth/user.json",
+  "environmentLabel": "local",
+  "fixtureVersion": "unspecified",
+  "scenarioManifestPath": "docs/plans/04-01-2026-Reconciliation_Master_Test_Plan/generated/scenario-manifest.json",
+  "scenarioManifestGeneratedAt": "2026-04-06T12:27:38.249Z",
+  "scenarioCount": 105,
+  "isFullSuiteRun": false,
+  "gitCommit": "e6c3e6d0aea020298613cc4eea748e52a711d914",
+  "statusCounts": {
+    "not-recorded": 104,
+    "blocked": 1
+  },
+  "artifactPaths": {
+    "htmlDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/html",
+    "resultsJson": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/results.json",
+    "resultsXml": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/results.xml",
+    "testResultsDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/test-results",
+    "scenarioResultsDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/scenario-results",
+    "reconciliationSummaryJson": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/reconciliation-summary.json",
+    "reconciliationSummaryMarkdown": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/reconciliation-summary.md",
+    "reconciliationScenariosCsv": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/reconciliation-scenarios.csv"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "scenarioId": "RS-069",
+  "title": "Two schedules look almost identical for same deposit line",
+  "lane": "ui-review",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:54:08.453Z",
+  "finishedAt": "2026-04-07T14:54:09.095Z",
+  "reason": "Deposit detail endpoint returned HTTP 500 for the mapped runtime fixture.",
+  "notes": [
+    "The browser reached the deposit route, but the underlying detail API was not healthy in the shared TEST DB.",
+    "Marked blocked instead of failed because this is an environment/runtime-fixture issue, not a verified reconciliation logic regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-069-detail-error",
+      "path": "test-results/reconciliation-suite--RS-0-4fec4-tical-for-same-deposit-line-chromium/rs-069-detail-error.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "tc03-dual-candidate-review",
+    "depositId": "347dd9cf-7111-407b-8b3a-328a642fddd3",
+    "lineId": "56742e01-8c59-4aba-9562-c00561873d78",
+    "scheduleIds": [
+      "54ce5402-0294-4337-b612-c514ad28865a",
+      "7192635a-363e-4ee7-8f03-706686ea6f3e"
+    ]
+  }
+}

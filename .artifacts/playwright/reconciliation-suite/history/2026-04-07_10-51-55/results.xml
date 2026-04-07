@@ -1,0 +1,800 @@
+<testsuites id="" name="" tests="106" failures="1" skipped="0" errors="0" time="166.46352100000001">
+<testsuite name="auth.setup.ts" timestamp="2026-04-07T14:52:06.931Z" hostname="setup" tests="1" failures="0" skipped="0" time="8.476" errors="0">
+<testcase name="authenticate and save browser state" classname="auth.setup.ts" time="8.476">
+</testcase>
+</testsuite>
+<testsuite name="reconciliation-suite.spec.ts" timestamp="2026-04-07T14:52:06.931Z" hostname="chromium" tests="105" failures="1" skipped="0" time="141.773" errors="0">
+<testcase name="[RS-001] @deterministic Exact Match All Key Fields" classname="reconciliation-suite.spec.ts" time="4.658">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-b942f--Exact-Match-All-Key-Fields-chromium\attachments\RS-001-result-2cbfb97a40b4aba24e2997d2bc6ccfd2dc828f55.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-002] @deterministic Exact match using Additional Information metadata" classname="reconciliation-suite.spec.ts" time="8.476">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-7dc95-tional-Information-metadata-chromium\attachments\RS-002-result-483acc2cb7180ffd021e644f0fe5a8685287b038.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-003] @deterministic Single deposit line splits cleanly across multiple schedules" classname="reconciliation-suite.spec.ts" time="6.874">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-fec5a-y-across-multiple-schedules-chromium\attachments\RS-003-result-723d217b71335c9c6411fd7f10647a420491d3af.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-004] @deterministic Multiple deposit lines roll up to one schedule" classname="reconciliation-suite.spec.ts" time="35.631">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\attachments\RS-004-result-a281804d4970fbe6e58cbdd15a715b0f4cc58788.json]]
+
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\video.webm]]
+
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\error-context.md]]
+
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\trace.zip]]
+]]>
+</system-out>
+<failure message="expect(locator).toBeVisible() failed" type="expect.toBeVisible">
+<![CDATA[  [chromium] › reconciliation-suite.spec.ts:1778:7 › [RS-004] @deterministic Multiple deposit lines roll up to one schedule 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 20000ms
+      - waiting for getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')
+
+
+      502 |     }
+      503 |
+    > 504 |     await expect(wizard.getByText('Applied successfully')).toBeVisible({ timeout: 20_000 })
+          |                                                            ^
+      505 |     await expect(wizard.getByText(/Match Group ID:/)).toBeVisible()
+      506 |     return resolutionNotes
+      507 |   }
+        at submitGroupedWizardThroughUi (C:\Users\Administrator\.cursor-projects\projects\commissable-crm-dev\tests\e2e\reconciliation-suite.spec.ts:504:60)
+        at runRs004 (C:\Users\Administrator\.cursor-projects\projects\commissable-crm-dev\tests\e2e\reconciliation-suite.spec.ts:803:37)
+        at C:\Users\Administrator\.cursor-projects\projects\commissable-crm-dev\tests\e2e\reconciliation-suite.spec.ts:1792:13
+
+    attachment #1: RS-004-result (application/json) ────────────────────────────────────────────────
+    ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\attachments\RS-004-result-a281804d4970fbe6e58cbdd15a715b0f4cc58788.json
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace ..\..\.artifacts\playwright\reconciliation-suite\history\2026-04-07_10-51-55\test-results\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+]]>
+</failure>
+</testcase>
+<testcase name="[RS-005] @deterministic Bundle payment matches multiple bundled products" classname="reconciliation-suite.spec.ts" time="1.177">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-e86ae-s-multiple-bundled-products-chromium\attachments\RS-005-result-b9cc6f57909571cad9ab31f7793366615c4d73fc.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-006] @deterministic Only part of deposit intentionally applies to available schedules" classname="reconciliation-suite.spec.ts" time="0.415">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-c098c-lies-to-available-schedules-chromium\attachments\RS-006-result-a5a4673f57460dfac7611314e623cb67f16aee9f.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-007] @deterministic Paid commission ties mathematically even if stated % field is informational" classname="reconciliation-suite.spec.ts" time="0.418">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1f932-ated-field-is-informational-chromium\attachments\RS-007-result-c21ed1cc2f10f54fd000af9b17587d072ba0f9e3.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-008] @deterministic Line item requires penny placement but totals still exact" classname="reconciliation-suite.spec.ts" time="0.417">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-bbbef-ment-but-totals-still-exact-chromium\attachments\RS-008-result-17d7afec5f85e2d8ca9b166b71b09bf9aa5abec9.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-009] @deterministic Usage higher than expected" classname="reconciliation-suite.spec.ts" time="0.389">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-42ae6--Usage-higher-than-expected-chromium\attachments\RS-009-result-12d153d5c0de8e1f275c12bf40a7a5dd177fa4fd.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-010] @deterministic Usage lower than expected" classname="reconciliation-suite.spec.ts" time="0.408">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-11715-c-Usage-lower-than-expected-chromium\attachments\RS-010-result-3e0619c3f9c13ec5a3eabcd0215535d892f0039e.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-011] @deterministic Usage slightly off but inside admin threshold" classname="reconciliation-suite.spec.ts" time="0.374">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-d63b8--but-inside-admin-threshold-chromium\attachments\RS-011-result-12d5563ce4e05cd62be29b3adcf9f70bdccda901.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-012] @deterministic Usage off beyond allowed threshold" classname="reconciliation-suite.spec.ts" time="0.366">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-689e2-ff-beyond-allowed-threshold-chromium\attachments\RS-012-result-a7ea3fcadc986b16c6f9f30b2eba1ad6a734251c.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-013] @deterministic Deposit reports zero usage where schedule expects usage" classname="reconciliation-suite.spec.ts" time="0.373">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-756cb-here-schedule-expects-usage-chromium\attachments\RS-013-result-1a0e40080740cff7f99d8040218e0ba8dc67d3f4.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-014] @deterministic Deposit shows usage before expected schedule amount" classname="reconciliation-suite.spec.ts" time="0.401">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-fe4bc-re-expected-schedule-amount-chromium\attachments\RS-014-result-0291ad2b430645878de305e51b0bd9c0018900b2.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-015] @deterministic Negative usage/credit hits existing schedule" classname="reconciliation-suite.spec.ts" time="0.401">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-fd7c0-edit-hits-existing-schedule-chromium\attachments\RS-015-result-2c2f5b360f30511e79ee2c1ebc5501336bb41963.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-016] @deterministic Total usage matches but one schedule receives too much" classname="reconciliation-suite.spec.ts" time="0.568">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-dfbe8--schedule-receives-too-much-chromium\attachments\RS-016-result-75103c222b1adec3bc81af53b2ea9c6861fb5ead.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-017] @deterministic Total usage matches but one schedule receives too little" classname="reconciliation-suite.spec.ts" time="0.573">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-b579a-chedule-receives-too-little-chromium\attachments\RS-017-result-ed87fd552ab83d53c48850f6f402a09bf543f0d8.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-018] @deterministic Deposit cannot split evenly across schedules" classname="reconciliation-suite.spec.ts" time="0.565">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-60271-lit-evenly-across-schedules-chromium\attachments\RS-018-result-d065295d07f90f225a641b8823a905db17d02489.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-019] @needs-clarification Multiple deposits sum above expected schedule usage" classname="reconciliation-suite.spec.ts" time="0.575">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-629da-ove-expected-schedule-usage-chromium\attachments\RS-019-result-9db2bfd036a5e7676bf219b5172ada64ee4b889a.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-020] @deterministic Multiple deposits sum below expected schedule usage" classname="reconciliation-suite.spec.ts" time="0.606">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-d45c1-low-expected-schedule-usage-chromium\attachments\RS-020-result-518a3a00b08bcea1d3b75346a4b9bc48c5aca2ee.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-021] @deterministic Current month usage high due to prior-period true-up" classname="reconciliation-suite.spec.ts" time="0.415">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-e7643-due-to-prior-period-true-up-chromium\attachments\RS-021-result-f078993f9c6d5ff6a22912a7b9a4c51363346775.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-022] @deterministic Actual usage differs by pennies from expected rounding" classname="reconciliation-suite.spec.ts" time="0.382">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-5c239-nies-from-expected-rounding-chromium\attachments\RS-022-result-833b18ff319d27ee3f83753a41d12b0c014db858.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-023] @deterministic Commission paid higher than expected while usage is exact" classname="reconciliation-suite.spec.ts" time="0.404">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-34a2b-pected-while-usage-is-exact-chromium\attachments\RS-023-result-8b2911c9834dcff4f8272b199a6220ebbab9c96d.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-024] @deterministic Commission paid lower than expected while usage is exact" classname="reconciliation-suite.spec.ts" time="0.775">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-4a890-pected-while-usage-is-exact-chromium\attachments\RS-024-result-8dbf6dbf0b838dac1478e983c72a3f3194ede3f7.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-025] @deterministic Commission amount matches even though usage does not" classname="reconciliation-suite.spec.ts" time="2.266">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-cc096--even-though-usage-does-not-chromium\attachments\RS-025-result-bbff54c536b7070fa8bd98a4167b6339878493ac.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-026] @deterministic Carrier billed usage but paid no commission" classname="reconciliation-suite.spec.ts" time="1.032">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-ba9df-sage-but-paid-no-commission-chromium\attachments\RS-026-result-9100f1d0d2a869369649252f5f8f926d8fae41b3.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-027] @deterministic Commission paid despite zero reported usage" classname="reconciliation-suite.spec.ts" time="0.943">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1b78a-despite-zero-reported-usage-chromium\attachments\RS-027-result-d7f82f99d62d7a651a5dfb6d9ed4248b52b4543f.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-028] @deterministic Carrier claws back previously paid commission" classname="reconciliation-suite.spec.ts" time="0.845">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-14c2c--previously-paid-commission-chromium\attachments\RS-028-result-9c3a3a3b1e53b3bfed5ba3579248774ab759f3d6.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-029] @deterministic Total commission correct but schedule split wrong" classname="reconciliation-suite.spec.ts" time="1.23">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-b855f-ct-but-schedule-split-wrong-chromium\attachments\RS-029-result-93ee7f9d3c5d6899bc2ecdda0a1225c7e40919e6.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-030] @deterministic Multiple deposit lines sum to too much commission" classname="reconciliation-suite.spec.ts" time="1.209">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-4b0b5--sum-to-too-much-commission-chromium\attachments\RS-030-result-6a18d2354ce96c8ef10ba6cb37762f31343bc2f4.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-031] @deterministic Multiple deposit lines sum to too little commission" classname="reconciliation-suite.spec.ts" time="1.246">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-596f6-um-to-too-little-commission-chromium\attachments\RS-031-result-b91bcb6748849cc21cded7b1268818a16f4a50ed.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-032] @deterministic Special payout creates extra commission dollars" classname="reconciliation-suite.spec.ts" time="0.831">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-aec9f-es-extra-commission-dollars-chromium\attachments\RS-032-result-e2e58f41ebc45100effe31159f1ef8ede0116616.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-033] @deterministic Current commission includes prior recovery amount" classname="reconciliation-suite.spec.ts" time="0.808">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-46600-ludes-prior-recovery-amount-chromium\attachments\RS-033-result-8f5168460b26c6cdba75a07a94f745a063210020.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-034] @deterministic Actual rate lower than expected" classname="reconciliation-suite.spec.ts" time="0.854">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-ceb2c-al-rate-lower-than-expected-chromium\attachments\RS-034-result-8f2d8354878de8c2e5d97e1ee2c7d6ac2ed814cd.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-035] @deterministic Actual rate higher than expected" classname="reconciliation-suite.spec.ts" time="0.844">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-e6b5f-l-rate-higher-than-expected-chromium\attachments\RS-035-result-2fa63e78bf3b4e02da4323dadf31bbc9190605e6.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-036] @deterministic Classic lower-rate mismatch" classname="reconciliation-suite.spec.ts" time="0.841">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-6b5c3-Classic-lower-rate-mismatch-chromium\attachments\RS-036-result-a58156d06a6da694780c0ed0bef9a72908dec94e.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-037] @deterministic Classic higher-rate mismatch" classname="reconciliation-suite.spec.ts" time="0.853">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-6c5bc-lassic-higher-rate-mismatch-chromium\attachments\RS-037-result-1ec1b21bd93b42b617ce09568c03bb62ca7ec859.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-038] @deterministic Derived rate disagrees with stored expected rate but paid dollars are internally consistent" classname="reconciliation-suite.spec.ts" time="0.843">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-e36c3-s-are-internally-consistent-chromium\attachments\RS-038-result-1c637007d07ee3d67271df58486aa5f7325f89db.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-039] @deterministic Carrier-provided rate field does not equal actual commission/usage math" classname="reconciliation-suite.spec.ts" time="0.879">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-0c318-ctual-commission-usage-math-chromium\attachments\RS-039-result-e5474b545d29fedbe82222f7e0ace54af4db24b2.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-040] @deterministic Actual rate changes and should apply forward" classname="reconciliation-suite.spec.ts" time="0.841">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-8c6ab-es-and-should-apply-forward-chromium\attachments\RS-040-result-9be1a778a549b67677879a3021112c7c94245017.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-041] @deterministic Actual rate differs for a single schedule only" classname="reconciliation-suite.spec.ts" time="1.047">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-12e59--for-a-single-schedule-only-chromium\attachments\RS-041-result-a789171677a0f95380401d1ba10b6e766cf2068d.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-042] @deterministic One deposit line spans schedules with different expected rates" classname="reconciliation-suite.spec.ts" time="1.242">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-8c075-th-different-expected-rates-chromium\attachments\RS-042-result-0488b6c87f35669afcb967c07e79abde4e63c030.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-043] @needs-clarification Multiple deposit lines create weighted actual rate different from expected" classname="reconciliation-suite.spec.ts" time="1.205">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-51f34-ate-different-from-expected-chromium\attachments\RS-043-result-d7d26cba7fae3f4a7bef506eb9575293aa92084a.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-044] @deterministic Carrier pays no commission rate on active bill" classname="reconciliation-suite.spec.ts" time="0.896">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-2c645-mission-rate-on-active-bill-chromium\attachments\RS-044-result-26b327e31ad697419ba2e6d31bdde56a6e886508.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-045] @deterministic Derived actual rate materially above expected norms" classname="reconciliation-suite.spec.ts" time="0.859">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-c6913-rially-above-expected-norms-chromium\attachments\RS-045-result-5e359d94d5e22a38cedc2c3605530ddcf86e5399.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-046] @deterministic Usage lower and rate different" classname="reconciliation-suite.spec.ts" time="0.879">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-c6f9b-ge-lower-and-rate-different-chromium\attachments\RS-046-result-4aad7bc0e925eeb0a342092bede1851857c8ec81.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-047] @deterministic Usage higher and rate different" classname="reconciliation-suite.spec.ts" time="0.888">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-14bc2-e-higher-and-rate-different-chromium\attachments\RS-047-result-c07ccd178d853fb45d4a3414d77a95332503375d.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-048] @deterministic Usage exact but paid commission not supported by expected or derived rate" classname="reconciliation-suite.spec.ts" time="0.865">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-e7ab4-by-expected-or-derived-rate-chromium\attachments\RS-048-result-81ae7d77cf683db4852aa7e7041310b75d83deee.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-049] @deterministic Paid commission ties to deposit math, but not to schedule expectation" classname="reconciliation-suite.spec.ts" time="0.877">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-46299-not-to-schedule-expectation-chromium\attachments\RS-049-result-c7deafb2f4cc831e1cca7e943230409cd4732d0c.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-050] @deterministic Usage, rate, and commission all inconsistent" classname="reconciliation-suite.spec.ts" time="0.91">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1188f-commission-all-inconsistent-chromium\attachments\RS-050-result-ce4def8e49c8c4fdfc49ebb968a4b468ff84dc65.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-051] @deterministic Usage and commission both misallocated across multiple schedules" classname="reconciliation-suite.spec.ts" time="1.269">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-6b95f-d-across-multiple-schedules-chromium\attachments\RS-051-result-1344923ce3b0c694193c942eae8e9e350de05b71.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-052] @needs-clarification Some deposit lines align, others conflict against one schedule" classname="reconciliation-suite.spec.ts" time="1.293">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-26b7f-nflict-against-one-schedule-chromium\attachments\RS-052-result-e3da9e2411f4cb0a2d13a60b4fc2c1f53fe37660.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-053] @deterministic Part of deposit reconciles exactly and remainder carries variance" classname="reconciliation-suite.spec.ts" time="0.907">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-c94ec--remainder-carries-variance-chromium\attachments\RS-053-result-f566b3dc98395a373eb8847bb9d5117fcd47ba66.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-054] @deterministic Opposing signals create abnormal effective rate" classname="reconciliation-suite.spec.ts" time="0.885">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-9e690-ate-abnormal-effective-rate-chromium\attachments\RS-054-result-21ddacb86a6344db1af73fd98d017970f2104b99.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-055] @deterministic Higher bill with lower paid commission" classname="reconciliation-suite.spec.ts" time="0.864">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-a1676--with-lower-paid-commission-chromium\attachments\RS-055-result-54cd9191f0c094f6f91879650330474943627968.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-056] @ui-review Distributor and vendor match but secondary metadata sparse" classname="reconciliation-suite.spec.ts" time="0.867">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1237e-t-secondary-metadata-sparse-chromium\attachments\RS-056-result-4b8d9ac5b32e57972242b5ee3ff588acc26bbd73.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-057] @ui-review Primary fields match but one secondary ID differs" classname="reconciliation-suite.spec.ts" time="0.871">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-82475-ut-one-secondary-ID-differs-chromium\attachments\RS-057-result-46e61e41649093a997322b394ddc3de1dbd08354.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-058] @ui-review Standard fields weak, Additional Information field confirms schedule" classname="reconciliation-suite.spec.ts" time="0.902">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-a2160-ion-field-confirms-schedule-chromium\attachments\RS-058-result-db09dde490d1030f53118202067ab6cb287f8929.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-059] @ui-review Names differ but stronger IDs align" classname="reconciliation-suite.spec.ts" time="0.844">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-41346-ffer-but-stronger-IDs-align-chromium\attachments\RS-059-result-d497e9240b17c0000693e2c1a73fe936b3a52d12.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-060] @ui-review Friendly account name differs while IDs align" classname="reconciliation-suite.spec.ts" time="0.821">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-a074d-ame-differs-while-IDs-align-chromium\attachments\RS-060-result-ddb4226d4e267fa4748c5fcceeb64d40fd6256bd.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-061] @ui-review Product naming differs between carrier and schedule" classname="reconciliation-suite.spec.ts" time="0.819">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-d9cae-etween-carrier-and-schedule-chromium\attachments\RS-061-result-60239497e3555e72123bee22522afdd8acf667ee.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-062] @ui-review Service ID absent on deposit but other metadata supports match" classname="reconciliation-suite.spec.ts" time="0.815">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-8a531-her-metadata-supports-match-chromium\attachments\RS-062-result-7b7b16d439c9347c745776722412e883e2608280.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-063] @ui-review Location missing but customer/order data aligns" classname="reconciliation-suite.spec.ts" time="0.838">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-8864c--customer-order-data-aligns-chromium\attachments\RS-063-result-e6c799023543107c707841585cd5dc5a1fe04d9f.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-064] @ui-review Other order ID absent but service and account align" classname="reconciliation-suite.spec.ts" time="0.822">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-3272a-t-service-and-account-align-chromium\attachments\RS-064-result-41bf27afc670d5ff02bf05295af5441dfc3b9715.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-065] @ui-review Customer ID absent from schedule/deposit pair" classname="reconciliation-suite.spec.ts" time="0.816">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-35459--from-schedule-deposit-pair-chromium\attachments\RS-065-result-b0040fac3642a10af7ea11b2b5ee59e336c34701.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-066] @ui-review Custom metadata mostly aligns with one conflicting value" classname="reconciliation-suite.spec.ts" time="0.804">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-f5672--with-one-conflicting-value-chromium\attachments\RS-066-result-b7e0c1cc12ab568b534738c47207602ed0c2401d.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-067] @ui-review Only primary fields plus dollar pattern make sense" classname="reconciliation-suite.spec.ts" time="0.811">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-78c51-s-dollar-pattern-make-sense-chromium\attachments\RS-067-result-6b50517ba1fce41f4a5a1ce44905fa16ab1e92d0.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-068] @ui-review Deposit could map to more than one valid schedule set" classname="reconciliation-suite.spec.ts" time="0.799">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-dc44d-than-one-valid-schedule-set-chromium\attachments\RS-068-result-0a36ef6141cf792e0f1e230ff3f49e9e0568b863.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-069] @ui-review Two schedules look almost identical for same deposit line" classname="reconciliation-suite.spec.ts" time="0.817">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-4fec4-tical-for-same-deposit-line-chromium\attachments\RS-069-result-eae85cd2b32bded09e74ce8d4a2d130d1a2d0328.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-070] @ui-review Part of deposit cannot be assigned after best match" classname="reconciliation-suite.spec.ts" time="0.822">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-7a919-e-assigned-after-best-match-chromium\attachments\RS-070-result-fea53da64015cc55cbfd9d4c24d369e4fcde2906.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-071] @ui-review Applying deposit across schedules would exceed received totals" classname="reconciliation-suite.spec.ts" time="1.18">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1aa89-ould-exceed-received-totals-chromium\attachments\RS-071-result-8dfac191b5320d6233a7e9361069c4fd3ce167b6.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-072] @needs-clarification Not all deposit lines needed but some still selected" classname="reconciliation-suite.spec.ts" time="1.136">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-2f41e-ded-but-some-still-selected-chromium\attachments\RS-072-result-a6255c17d854c10b15ee82f8a8fbff9ecc272feb.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-073] @ui-review No schedules satisfy metadata and amount expectations" classname="reconciliation-suite.spec.ts" time="0.804">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-d1a24-ata-and-amount-expectations-chromium\attachments\RS-073-result-f8c08166f03a9a7807e3f2e6b510cf38c692b070.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-074] @ui-review Bundle deposit appears but only some products exist as schedules" classname="reconciliation-suite.spec.ts" time="1.202">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-b4c1f-products-exist-as-schedules-chromium\attachments\RS-074-result-2472f82e41ca5d590ff81b0b87f5f7284aff2401.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-075] @needs-clarification Multiple lines appear to belong to one opp but different products" classname="reconciliation-suite.spec.ts" time="1.135">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-dd7a3--opp-but-different-products-chromium\attachments\RS-075-result-4a500b9e33549abc3efb2df1f1a4a21e6dfa5f40.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-076] @ui-review Names align but deal-specific IDs point elsewhere" classname="reconciliation-suite.spec.ts" time="0.906">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-5cbf6-pecific-IDs-point-elsewhere-chromium\attachments\RS-076-result-2bcae99c2fc53633eb6891f23e7cb9aa9c4f143c.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-077] @ui-review One line may apply to several product types under same account" classname="reconciliation-suite.spec.ts" time="1.346">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-c340a-ct-types-under-same-account-chromium\attachments\RS-077-result-6550aaeb695befef693abc8bd758aa9d6868ec79.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-078] @deterministic Carrier pays prior month in current file" classname="reconciliation-suite.spec.ts" time="0.825">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-f8fa8-prior-month-in-current-file-chromium\attachments\RS-078-result-ad3a8d4426f81c7a568241f95bdb7724f95e9cdc.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-079] @deterministic Carrier prepays earlier than expected" classname="reconciliation-suite.spec.ts" time="0.821">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-238e9-epays-earlier-than-expected-chromium\attachments\RS-079-result-0d31d551a4c8c500a557540d94adbfcf291dea45.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-080] @deterministic Standard line includes unexpected extra commission" classname="reconciliation-suite.spec.ts" time="1.035">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-a6d33-unexpected-extra-commission-chromium\attachments\RS-080-result-abc040e273a6be32de1a838ac3a9cc186eb3cf4e.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-081] @deterministic Current line reduced by prior-period chargeback" classname="reconciliation-suite.spec.ts" time="1.012">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-74fbc--by-prior-period-chargeback-chromium\attachments\RS-081-result-619328ec62f2ba1ebfb0ea9141f084d208c295e6.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-082] @deterministic Metadata aged but IDs and amounts fit" classname="reconciliation-suite.spec.ts" time="0.843">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-4ef1b-ged-but-IDs-and-amounts-fit-chromium\attachments\RS-082-result-7f98bf52ecfd5d64e627d390a360cb9293b8a0cf.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-083] @deterministic Customer name text wrong but unique IDs right" classname="reconciliation-suite.spec.ts" time="1.018">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-168d0--wrong-but-unique-IDs-right-chromium\attachments\RS-083-result-9900d11c48eab54f424ce91a4daa2eddc0f0ff64.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-084] @deterministic Carrier pays a line that should no longer be active" classname="reconciliation-suite.spec.ts" time="0.896">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-76397--should-no-longer-be-active-chromium\attachments\RS-084-result-daa1ac671aad28abb6bd1ce0c656ede0c813b96a.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-085] @deterministic Deposit line contains only vendor/distributor and dollars" classname="reconciliation-suite.spec.ts" time="0.899">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-05950-dor-distributor-and-dollars-chromium\attachments\RS-085-result-ec3038730717ec14366e4ffa52c07dd7fb4a5220.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-086] @deterministic Actual rate includes extra decimal precision before rounding" classname="reconciliation-suite.spec.ts" time="0.847">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-8861f-l-precision-before-rounding-chromium\attachments\RS-086-result-4faab67912d1a4ca7655eb429b4cc27e82413d30.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-087] @deterministic Actual commission not tied proportionally to usage" classname="reconciliation-suite.spec.ts" time="0.83">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1a9b3-ied-proportionally-to-usage-chromium\attachments\RS-087-result-c5d4c311b1868e43b8f8934decc81daa47fe3767.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-088] @deterministic Commission off by $0.01 high" classname="reconciliation-suite.spec.ts" time="0.848">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-02ffb-Commission-off-by-0-01-high-chromium\attachments\RS-088-result-4324feaae58edbc3dab8d6bca7efe30f138e1ab9.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-089] @deterministic Commission off by $0.01 low" classname="reconciliation-suite.spec.ts" time="0.843">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-da94d--Commission-off-by-0-01-low-chromium\attachments\RS-089-result-671146101955106c6280145d19ede405f69c53a3.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-090] @deterministic Split leaves one-cent remainder" classname="reconciliation-suite.spec.ts" time="1.141">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-1cd36-t-leaves-one-cent-remainder-chromium\attachments\RS-090-result-a73d5da4a73ee107b3868e18a61d4a82602ad4d8.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-091] @needs-clarification Aggregated lines create cent residual" classname="reconciliation-suite.spec.ts" time="1.134">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-48094--lines-create-cent-residual-chromium\attachments\RS-091-result-e5f14ca40fd6ae3fb06dd38a1703538aaaab17dc.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-092] @deterministic Actual derived rate rounds to expected after 2 decimals" classname="reconciliation-suite.spec.ts" time="0.827">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-5e58b-o-expected-after-2-decimals-chromium\attachments\RS-092-result-9d13b8721024330d78139a3b707c91250d35174e.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-093] @deterministic Actual derived rate rounds below expected at 2 decimals" classname="reconciliation-suite.spec.ts" time="0.818">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-28689-elow-expected-at-2-decimals-chromium\attachments\RS-093-result-5bf2ef9f247da5065afec9c9bf396c7a10710d9a.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-094] @deterministic One split line looks off but total is exact" classname="reconciliation-suite.spec.ts" time="1.127">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-3efb4-ooks-off-but-total-is-exact-chromium\attachments\RS-094-result-777f9254965aaff87b4c364bcb2e33f53c067834.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-095] @deterministic Both usage and commission differ slightly from rounding" classname="reconciliation-suite.spec.ts" time="0.793">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-78a0c-ffer-slightly-from-rounding-chromium\attachments\RS-095-result-51f430e473d0b83dc8f3ce28857346046bb447f9.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-096] @deterministic Small usage rounding cannot explain large commission gap" classname="reconciliation-suite.spec.ts" time="0.787">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-726c5-xplain-large-commission-gap-chromium\attachments\RS-096-result-a47aff4c8cfcefb6fee8ac5e74b9afc594cbef2d.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-097] @deterministic Rounded display shows 0 but underlying source created cents" classname="reconciliation-suite.spec.ts" time="0.78">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-18b92-rlying-source-created-cents-chromium\attachments\RS-097-result-4ab7a0fc20967b36cfdd237180ca1f78b455b66c.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-098] @ui-review User accepts actual rate for current schedule only" classname="reconciliation-suite.spec.ts" time="0.777">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-dee17-e-for-current-schedule-only-chromium\attachments\RS-098-result-30b0cf5375980c021895ab0ed12090022e8529eb.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-099] @ui-review User accepts actual rate for this and future schedules" classname="reconciliation-suite.spec.ts" time="0.785">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-3af3d-r-this-and-future-schedules-chromium\attachments\RS-099-result-2b214010a5f354d7d7bd0fc5b80a09cf14e7aa72.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-100] @ui-review User accepts actual rate and updates master catalog" classname="reconciliation-suite.spec.ts" time="0.786">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-65eca--and-updates-master-catalog-chromium\attachments\RS-100-result-45bda0076e1fe6cffb6b688139ab9a0b6c84c743.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-101] @ui-review User agrees actual usage is valid one-off variance" classname="reconciliation-suite.spec.ts" time="0.788">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-954fd-e-is-valid-one-off-variance-chromium\attachments\RS-101-result-fc4502aebc249a4373ddc5024d8e7a7a535f97ae.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-102] @ui-review User manually distributes deposit across schedules" classname="reconciliation-suite.spec.ts" time="1.083">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-13646-es-deposit-across-schedules-chromium\attachments\RS-102-result-c29f5e789cb13ec2f0fff60f801e3f2bec27fd21.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-103] @ui-review User accepts matched portion and leaves remainder open" classname="reconciliation-suite.spec.ts" time="0.788">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-9f583-n-and-leaves-remainder-open-chromium\attachments\RS-103-result-901cffb79306cdd46896a8c445085bf715151f2f.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-104] @ui-review User decides candidate is wrong despite strong metadata" classname="reconciliation-suite.spec.ts" time="0.786">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-e6504-ong-despite-strong-metadata-chromium\attachments\RS-104-result-4c36fd7d010fc4fb036028130183a92b04e480f7.json]]
+]]>
+</system-out>
+</testcase>
+<testcase name="[RS-105] @ui-review User confirms spiff/flat/minimum payout is valid" classname="reconciliation-suite.spec.ts" time="0.787">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-1-f3699-lat-minimum-payout-is-valid-chromium\attachments\RS-105-result-c32122c8fce19e1f28a5587598b8c7bf0cbb88e6.json]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

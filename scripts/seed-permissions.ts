@@ -74,6 +74,7 @@ const PERMISSIONS = [
   { code: 'admin.system.config', name: 'System configuration', description: 'Can configure system settings', category: 'Admin' },
   { code: 'admin.audit.access', name: 'Audit log access', description: 'Can access audit logs', category: 'Admin' },
   { code: 'admin.import_export', name: 'Full import/export rights', description: 'Can import and export all data', category: 'Admin' },
+  { code: 'admin.playwright.read', name: 'Read Playwright Results', description: 'Can view Playwright reconciliation runs and artifacts', category: 'Admin' },
 
   // Audit Logs permissions
   { code: 'auditLogs.read', name: 'Read audit logs', description: 'Can view audit logs', category: 'Admin' },

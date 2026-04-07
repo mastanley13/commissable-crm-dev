@@ -1,0 +1,15 @@
+<testsuites id="" name="" tests="2" failures="0" skipped="0" errors="0" time="34.24005">
+<testsuite name="auth.setup.ts" timestamp="2026-04-07T14:51:21.034Z" hostname="setup" tests="1" failures="0" skipped="0" time="9.915" errors="0">
+<testcase name="authenticate and save browser state" classname="auth.setup.ts" time="9.915">
+</testcase>
+</testsuite>
+<testsuite name="reconciliation-suite.spec.ts" timestamp="2026-04-07T14:51:21.034Z" hostname="chromium" tests="1" failures="0" skipped="0" time="10.514" errors="0">
+<testcase name="[RS-010] @deterministic Usage lower than expected" classname="reconciliation-suite.spec.ts" time="10.514">
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results\reconciliation-suite--RS-0-11715-c-Usage-lower-than-expected-chromium\attachments\RS-010-result-cd6565052cc9246ef0400fd30eec6e8ae2ee5f5d.json]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

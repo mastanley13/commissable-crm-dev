@@ -1,0 +1,32 @@
+{
+  "scenarioId": "RS-016",
+  "title": "Total usage matches but one schedule receives too much",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:20.734Z",
+  "finishedAt": "2026-04-07T14:53:21.136Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-016-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-dfbe8--schedule-receives-too-much-chromium/rs-016-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1tom-split-family",
+    "depositId": "75fd941e-8614-40fc-b9ee-39acac07450e",
+    "lineId": "b206178c-5f7e-44a4-9455-b017ff854d13",
+    "lineIds": [
+      "b206178c-5f7e-44a4-9455-b017ff854d13",
+      "2b4d9b75-d7dc-4125-a199-01d70e0c2c59",
+      "fba76747-c604-412c-8f1b-4f03b7600a6e"
+    ],
+    "scheduleIds": [
+      "1274ec2a-54c2-4dcb-9185-6f1cee0de73c"
+    ]
+  }
+}

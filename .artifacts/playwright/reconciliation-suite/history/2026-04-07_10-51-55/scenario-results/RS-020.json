@@ -1,0 +1,36 @@
+{
+  "scenarioId": "RS-020",
+  "title": "Multiple deposits sum below expected schedule usage",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:23.067Z",
+  "finishedAt": "2026-04-07T14:53:23.503Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-020-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-d45c1-low-expected-schedule-usage-chromium/rs-020-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "rs020-manytoone-underage",
+    "depositId": "74116291-3f21-4e52-91c5-1953ccf34174",
+    "lineId": "0c0d7325-3fa6-4684-9d8c-c830d65dcdb0",
+    "lineIds": [
+      "0c0d7325-3fa6-4684-9d8c-c830d65dcdb0",
+      "23858a60-20ac-45fc-87b6-679d0f72eb77",
+      "b343c07a-e747-4492-bc9f-0a2ece4af8d5"
+    ],
+    "scheduleIds": [
+      "bc5393d9-891b-4dea-ab07-9fd981017708"
+    ],
+    "resultNotes": [
+      "Fixture semantics: combined deposit totals 950 usage and 95 commission against the target schedule expectation of 1000 usage and 100 commission.",
+      "This run uses the intended RS-020 underage ManyToOne fixture, not the earlier harness-correction remap."
+    ]
+  }
+}

@@ -76,6 +76,7 @@ const ALL_PERMISSIONS = [
   { code: 'admin.roles.delete', name: 'Delete Roles', description: 'Can delete roles', category: 'Admin' },
   { code: 'admin.permissions.read', name: 'Read Permissions', description: 'Can read permission information', category: 'Admin' },
   { code: 'admin.users.read', name: 'Read Users', description: 'Can read user information', category: 'Admin' },
+  { code: 'admin.playwright.read', name: 'Read Playwright Results', description: 'Can view Playwright reconciliation runs and artifacts', category: 'Admin' },
   { code: 'admin.users.create', name: 'Create Users', description: 'Can create new users', category: 'Admin' },
   { code: 'admin.users.update', name: 'Update Users', description: 'Can update existing users', category: 'Admin' },
   { code: 'admin.users.delete', name: 'Delete Users', description: 'Can delete users', category: 'Admin' },

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-006",
+  "title": "Only part of deposit intentionally applies to available schedules",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:16.625Z",
+  "finishedAt": "2026-04-07T14:53:16.855Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view.",
+    "Marked blocked instead of failed because this indicates runtime-fixture drift or environment mismatch, not a confirmed product regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-006-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-c098c-lies-to-available-schedules-chromium/rs-006-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-partial-review",
+    "depositId": "699a0e77-69d6-485c-ba8e-ddacd988ecf8",
+    "lineId": "1c37b342-821a-4b28-9e51-db131e84f780",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

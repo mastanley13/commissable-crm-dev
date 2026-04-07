@@ -1,0 +1,27 @@
+{
+  "scenarioId": "RS-004",
+  "title": "Multiple deposit lines roll up to one schedule",
+  "lane": "deterministic",
+  "status": "fail",
+  "startedAt": "2026-04-07T14:52:37.980Z",
+  "finishedAt": "2026-04-07T14:53:12.565Z",
+  "reason": "\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\u001b[22m\n",
+  "notes": [
+    "See Playwright failure artifacts for the full stack and browser evidence."
+  ],
+  "artifacts": [],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "rs004-tc05-manytoone",
+    "depositId": "7c6dbc29-d849-4c71-91a0-afe07db263d3",
+    "lineId": "2c04f134-0acd-422a-a7a9-2eb1f5a2f0e1",
+    "lineIds": [
+      "2c04f134-0acd-422a-a7a9-2eb1f5a2f0e1",
+      "5ec1b060-5c20-48fe-9936-d361575c15f5",
+      "08e44224-843c-4bff-9fc8-2fb7f28db323"
+    ],
+    "scheduleIds": [
+      "bc5393d9-891b-4dea-ab07-9fd981017708"
+    ]
+  }
+}

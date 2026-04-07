@@ -1,0 +1,27 @@
+{
+  "scenarioId": "RS-002",
+  "title": "Exact match using Additional Information metadata",
+  "lane": "deterministic",
+  "status": "pass",
+  "startedAt": "2026-04-07T14:52:22.594Z",
+  "finishedAt": "2026-04-07T14:52:30.921Z",
+  "notes": [
+    "Dedicated RS-002 metadata-assisted starter deposit returned exactly one candidate.",
+    "Candidate reasoning explicitly includes order ID and customer ID evidence, matching the additional-information scenario goal."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-002-metadata-candidate",
+      "path": "test-results/reconciliation-suite--RS-0-7dc95-tional-Information-metadata-chromium/rs-002-metadata-candidate.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "rs002-exact-metadata-candidate",
+    "depositId": "01a6c210-9f8f-4ebf-97eb-d8bec64fdedd",
+    "lineId": "ab8e9cad-7aaf-4cb8-9523-903d3e3333a0",
+    "scheduleIds": [
+      "51219876-e827-4bc0-81d6-ec257caf6391"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-035",
+  "title": "Actual rate higher than expected",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:37.133Z",
+  "finishedAt": "2026-04-07T14:53:37.803Z",
+  "reason": "Deposit detail endpoint returned HTTP 500 for the mapped runtime fixture.",
+  "notes": [
+    "The browser reached the deposit route, but the underlying detail API was not healthy in the shared TEST DB.",
+    "Marked blocked instead of failed because this is an environment/runtime-fixture issue, not a verified reconciliation logic regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-035-detail-error",
+      "path": "test-results/reconciliation-suite--RS-0-e6b5f-l-rate-higher-than-expected-chromium/rs-035-detail-error.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1to1-candidate-review",
+    "depositId": "6eef0836-1147-47ed-8413-e1d089268cf0",
+    "lineId": "42bc2596-04aa-4fb4-b9e2-64c507e0ab03",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-023",
+  "title": "Commission paid higher than expected while usage is exact",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:24.510Z",
+  "finishedAt": "2026-04-07T14:53:24.753Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view.",
+    "Marked blocked instead of failed because this indicates runtime-fixture drift or environment mismatch, not a confirmed product regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-023-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-34a2b-pected-while-usage-is-exact-chromium/rs-023-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1to1-candidate-review",
+    "depositId": "6eef0836-1147-47ed-8413-e1d089268cf0",
+    "lineId": "42bc2596-04aa-4fb4-b9e2-64c507e0ab03",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

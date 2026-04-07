@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-010",
+  "title": "Usage lower than expected",
+  "lane": "deterministic",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:18.329Z",
+  "finishedAt": "2026-04-07T14:53:18.569Z",
+  "reason": "The mapped reconciliation deposit route rendered the app 404 page in the current browser session, so the scenario could not be executed.",
+  "notes": [
+    "The browser reached the deposit route, but the page itself did not resolve to a live reconciliation detail view.",
+    "Marked blocked instead of failed because this indicates runtime-fixture drift or environment mismatch, not a confirmed product regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-010-deposit-404",
+      "path": "test-results/reconciliation-suite--RS-0-11715-c-Usage-lower-than-expected-chromium/rs-010-deposit-404.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1to1-candidate-review",
+    "depositId": "6eef0836-1147-47ed-8413-e1d089268cf0",
+    "lineId": "fe5e4fe1-d816-4826-ba7f-5dcc73e4e83e",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

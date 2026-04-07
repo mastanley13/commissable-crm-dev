@@ -1,0 +1,37 @@
+{
+  "scenarioId": "RS-052",
+  "title": "Some deposit lines align, others conflict against one schedule",
+  "lane": "needs-clarification",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:53:53.437Z",
+  "finishedAt": "2026-04-07T14:53:54.532Z",
+  "reason": "Deposit detail endpoint returned HTTP 500 for the mapped runtime fixture.",
+  "notes": [
+    "The underlying detail API was not healthy in the shared TEST DB."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-052-detail-error",
+      "path": "test-results/reconciliation-suite--RS-0-26b7f-nflict-against-one-schedule-chromium/rs-052-detail-error.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-mto1-combined-family",
+    "depositId": "75fd941e-8614-40fc-b9ee-39acac07450e",
+    "lineId": "b206178c-5f7e-44a4-9455-b017ff854d13",
+    "lineIds": [
+      "b206178c-5f7e-44a4-9455-b017ff854d13",
+      "2b4d9b75-d7dc-4125-a199-01d70e0c2c59",
+      "fba76747-c604-412c-8f1b-4f03b7600a6e"
+    ],
+    "scheduleIds": [
+      "1274ec2a-54c2-4dcb-9185-6f1cee0de73c"
+    ],
+    "validationScope": "runtime-path-validation",
+    "resultNotes": [
+      "This run should be treated as runtime-path validation only.",
+      "RS-019 already proved the canonical ManyToOne runtime path; the remaining gap for RS-052 is mixed-variance wording or row-specific fixture specificity."
+    ]
+  }
+}

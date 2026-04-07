@@ -1,0 +1,28 @@
+{
+  "scenarioId": "RS-100",
+  "title": "User accepts actual rate and updates master catalog",
+  "lane": "ui-review",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:54:37.925Z",
+  "finishedAt": "2026-04-07T14:54:38.542Z",
+  "reason": "Deposit detail endpoint returned HTTP 500 for the mapped runtime fixture.",
+  "notes": [
+    "The browser reached the deposit route, but the underlying detail API was not healthy in the shared TEST DB.",
+    "Marked blocked instead of failed because this is an environment/runtime-fixture issue, not a verified reconciliation logic regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-100-detail-error",
+      "path": "test-results/reconciliation-suite--RS-1-65eca--and-updates-master-catalog-chromium/rs-100-detail-error.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "generic-1to1-candidate-review",
+    "depositId": "6eef0836-1147-47ed-8413-e1d089268cf0",
+    "lineId": "4868fa49-89f5-44b7-ab5a-803ca5816e32",
+    "scheduleIds": [
+      "098200f0-c427-4e12-92d5-1c398263f851"
+    ]
+  }
+}

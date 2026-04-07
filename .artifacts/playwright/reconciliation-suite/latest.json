@@ -1,0 +1,15 @@
+{
+  "runId": "2026-04-07_10-51-55",
+  "runDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55",
+  "suiteName": "reconciliation-suite",
+  "generatedAt": "2026-04-07T14:54:44.290Z",
+  "scenarioCount": 105,
+  "isFullSuiteRun": true,
+  "statusCounts": {
+    "pass": 2,
+    "pass-pending-ui-review": 1,
+    "fail": 1,
+    "blocked": 101
+  },
+  "reconciliationSummaryJson": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55/reconciliation-summary.json"
+}

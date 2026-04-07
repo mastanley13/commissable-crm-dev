@@ -1,0 +1,4611 @@
+{
+  "config": {
+    "configFile": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\playwright.config.ts",
+    "rootDir": "C:/Users/Administrator/.cursor-projects/projects/commissable-crm-dev/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Administrator/.cursor-projects/projects/commissable-crm-dev/.artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "C:/Users/Administrator/.cursor-projects/projects/commissable-crm-dev/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "C:/Users/Administrator/.cursor-projects/projects/commissable-crm-dev/.artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Users/Administrator/.cursor-projects/projects/commissable-crm-dev/tests/e2e",
+        "testIgnore": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\html",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\results.xml"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 1,
+    "webServer": {
+      "command": "\"C:\\\\Users\\\\Administrator\\\\.node\\\\node.exe\" \"C:\\\\Users\\\\Administrator\\\\.cursor-projects\\\\projects\\\\commissable-crm-dev\\\\node_modules\\\\next\\\\dist\\\\bin\\\\next\" dev --hostname 127.0.0.1 --port 3000",
+      "url": "http://127.0.0.1:3000",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "auth.setup.ts",
+      "file": "auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate and save browser state",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8476,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:52:08.062Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "17e3fe6f4d9d8bd79c6b-401f0118b914a1fc5b78",
+          "file": "auth.setup.ts",
+          "line": 10,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "reconciliation-suite.spec.ts",
+      "file": "reconciliation-suite.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "[RS-001] @deterministic Exact Match All Key Fields",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4658,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:52:17.775Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-001-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-b942f--Exact-Match-All-Key-Fields-chromium\\attachments\\RS-001-result-2cbfb97a40b4aba24e2997d2bc6ccfd2dc828f55.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-3060e718b6fc990d3873",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-002] @deterministic Exact match using Additional Information metadata",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 8476,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:52:22.538Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-002-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-7dc95-tional-Information-metadata-chromium\\attachments\\RS-002-result-483acc2cb7180ffd021e644f0fe5a8685287b038.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-5bc4bd4fe9023c12b7f8",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-003] @deterministic Single deposit line splits cleanly across multiple schedules",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6874,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:52:31.030Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-003-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-fec5a-y-across-multiple-schedules-chromium\\attachments\\RS-003-result-723d217b71335c9c6411fd7f10647a420491d3af.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-8a58705115cdb5cddd33",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-004] @deterministic Multiple deposit lines roll up to one schedule",
+          "ok": false,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 35631,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\u001b[22m\n\n    at submitGroupedWizardThroughUi (C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:504:60)\n    at runRs004 (C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:803:37)\n    at C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:1792:13",
+                    "location": {
+                      "file": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts",
+                      "column": 60,
+                      "line": 504
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 502 |\u001b[39m     }\n \u001b[90m 503 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 504 |\u001b[39m     \u001b[36mawait\u001b[39m expect(wizard\u001b[33m.\u001b[39mgetByText(\u001b[32m'Applied successfully'\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible({ timeout\u001b[33m:\u001b[39m \u001b[35m20\u001b[39m_000 })\n \u001b[90m     |\u001b[39m                                                            \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 505 |\u001b[39m     \u001b[36mawait\u001b[39m expect(wizard\u001b[33m.\u001b[39mgetByText(\u001b[35m/Match Group ID:/\u001b[39m))\u001b[33m.\u001b[39mtoBeVisible()\n \u001b[90m 506 |\u001b[39m     \u001b[36mreturn\u001b[39m resolutionNotes\n \u001b[90m 507 |\u001b[39m   }\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts",
+                        "column": 60,
+                        "line": 504
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\nExpected: visible\nTimeout: 20000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 20000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('dialog', { name: 'Reconciliation match wizard' }).getByText('Applied successfully')\u001b[22m\n\n\n  502 |     }\n  503 |\n> 504 |     await expect(wizard.getByText('Applied successfully')).toBeVisible({ timeout: 20_000 })\n      |                                                            ^\n  505 |     await expect(wizard.getByText(/Match Group ID:/)).toBeVisible()\n  506 |     return resolutionNotes\n  507 |   }\n    at submitGroupedWizardThroughUi (C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:504:60)\n    at runRs004 (C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:803:37)\n    at C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts:1792:13"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:52:37.923Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-004-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\\attachments\\RS-004-result-a281804d4970fbe6e58cbdd15a715b0f4cc58788.json"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\\video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-71a68-nes-roll-up-to-one-schedule-chromium\\trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\tests\\e2e\\reconciliation-suite.spec.ts",
+                    "column": 60,
+                    "line": 504
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-3f7bea6305cad645276b",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-005] @deterministic Bundle payment matches multiple bundled products",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1177,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:15.285Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-005-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-e86ae-s-multiple-bundled-products-chromium\\attachments\\RS-005-result-b9cc6f57909571cad9ab31f7793366615c4d73fc.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-09299b230e0e95e1087a",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-006] @deterministic Only part of deposit intentionally applies to available schedules",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 415,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:16.568Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-006-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-c098c-lies-to-available-schedules-chromium\\attachments\\RS-006-result-a5a4673f57460dfac7611314e623cb67f16aee9f.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c592fb9561ead019ba57",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-007] @deterministic Paid commission ties mathematically even if stated % field is informational",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 418,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:17.000Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-007-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1f932-ated-field-is-informational-chromium\\attachments\\RS-007-result-c21ed1cc2f10f54fd000af9b17587d072ba0f9e3.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-57e616e4fe42dbf73754",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-008] @deterministic Line item requires penny placement but totals still exact",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 417,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:17.433Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-008-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-bbbef-ment-but-totals-still-exact-chromium\\attachments\\RS-008-result-17d7afec5f85e2d8ca9b166b71b09bf9aa5abec9.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f5d58ff2c376d45a1b53",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-009] @deterministic Usage higher than expected",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 389,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:17.865Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-009-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-42ae6--Usage-higher-than-expected-chromium\\attachments\\RS-009-result-12d153d5c0de8e1f275c12bf40a7a5dd177fa4fd.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f6595be83156e2063b0b",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-010] @deterministic Usage lower than expected",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 408,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:18.269Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-010-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-11715-c-Usage-lower-than-expected-chromium\\attachments\\RS-010-result-3e0619c3f9c13ec5a3eabcd0215535d892f0039e.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-16ae7e4d828b17285403",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-011] @deterministic Usage slightly off but inside admin threshold",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 374,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:18.692Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-011-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-d63b8--but-inside-admin-threshold-chromium\\attachments\\RS-011-result-12d5563ce4e05cd62be29b3adcf9f70bdccda901.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-96a44cfced4347e59e70",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-012] @deterministic Usage off beyond allowed threshold",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 366,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:19.080Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-012-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-689e2-ff-beyond-allowed-threshold-chromium\\attachments\\RS-012-result-a7ea3fcadc986b16c6f9f30b2eba1ad6a734251c.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d800113f44160c2088e4",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-013] @deterministic Deposit reports zero usage where schedule expects usage",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 373,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:19.460Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-013-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-756cb-here-schedule-expects-usage-chromium\\attachments\\RS-013-result-1a0e40080740cff7f99d8040218e0ba8dc67d3f4.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-7bd561fd305d4f847735",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-014] @deterministic Deposit shows usage before expected schedule amount",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 401,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:19.848Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-014-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-fe4bc-re-expected-schedule-amount-chromium\\attachments\\RS-014-result-0291ad2b430645878de305e51b0bd9c0018900b2.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-01af4a715efb23fc745d",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-015] @deterministic Negative usage/credit hits existing schedule",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 401,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:20.264Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-015-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-fd7c0-edit-hits-existing-schedule-chromium\\attachments\\RS-015-result-2c2f5b360f30511e79ee2c1ebc5501336bb41963.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-597904ad2eaac5b088e3",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-016] @deterministic Total usage matches but one schedule receives too much",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 568,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:20.678Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-016-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-dfbe8--schedule-receives-too-much-chromium\\attachments\\RS-016-result-75103c222b1adec3bc81af53b2ea9c6861fb5ead.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-0fe947b6b6d873ac9ab7",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-017] @deterministic Total usage matches but one schedule receives too little",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 573,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:21.260Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-017-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-b579a-chedule-receives-too-little-chromium\\attachments\\RS-017-result-ed87fd552ab83d53c48850f6f402a09bf543f0d8.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d028b57bd7d9cb183ed7",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-018] @deterministic Deposit cannot split evenly across schedules",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 565,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:21.847Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-018-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-60271-lit-evenly-across-schedules-chromium\\attachments\\RS-018-result-d065295d07f90f225a641b8823a905db17d02489.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2f3126bba710dd593258",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-019] @needs-clarification Multiple deposits sum above expected schedule usage",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 575,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:22.426Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-019-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-629da-ove-expected-schedule-usage-chromium\\attachments\\RS-019-result-9db2bfd036a5e7676bf219b5172ada64ee4b889a.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-3f5344731e2f98ebc6ca",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-020] @deterministic Multiple deposits sum below expected schedule usage",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 606,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:23.015Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-020-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-d45c1-low-expected-schedule-usage-chromium\\attachments\\RS-020-result-518a3a00b08bcea1d3b75346a4b9bc48c5aca2ee.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-45566ab86496dd363589",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-021] @deterministic Current month usage high due to prior-period true-up",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 415,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:23.636Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-021-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-e7643-due-to-prior-period-true-up-chromium\\attachments\\RS-021-result-f078993f9c6d5ff6a22912a7b9a4c51363346775.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6790ccd78733b1911a45",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-022] @deterministic Actual usage differs by pennies from expected rounding",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 382,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:24.065Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-022-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-5c239-nies-from-expected-rounding-chromium\\attachments\\RS-022-result-833b18ff319d27ee3f83753a41d12b0c014db858.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-b22cbcba3a449d52b5b2",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-023] @deterministic Commission paid higher than expected while usage is exact",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 404,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:24.462Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-023-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-34a2b-pected-while-usage-is-exact-chromium\\attachments\\RS-023-result-8b2911c9834dcff4f8272b199a6220ebbab9c96d.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c113ecdcb0d15722c3d5",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-024] @deterministic Commission paid lower than expected while usage is exact",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 775,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:24.880Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-024-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-4a890-pected-while-usage-is-exact-chromium\\attachments\\RS-024-result-8dbf6dbf0b838dac1478e983c72a3f3194ede3f7.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-8f9a004048d3751b5d19",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-025] @deterministic Commission amount matches even though usage does not",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2266,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:25.669Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-025-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-cc096--even-though-usage-does-not-chromium\\attachments\\RS-025-result-bbff54c536b7070fa8bd98a4167b6339878493ac.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-85515748db5f938370b9",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-026] @deterministic Carrier billed usage but paid no commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1032,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:27.950Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-026-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-ba9df-sage-but-paid-no-commission-chromium\\attachments\\RS-026-result-9100f1d0d2a869369649252f5f8f926d8fae41b3.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-b6cc66ef5118f3dfea81",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-027] @deterministic Commission paid despite zero reported usage",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 943,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:29.001Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-027-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1b78a-despite-zero-reported-usage-chromium\\attachments\\RS-027-result-d7f82f99d62d7a651a5dfb6d9ed4248b52b4543f.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9f3e5654f5ba568a381e",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-028] @deterministic Carrier claws back previously paid commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 845,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:29.959Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-028-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-14c2c--previously-paid-commission-chromium\\attachments\\RS-028-result-9c3a3a3b1e53b3bfed5ba3579248774ab759f3d6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-fab21b61260e66475ed4",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-029] @deterministic Total commission correct but schedule split wrong",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1230,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:30.818Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-029-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-b855f-ct-but-schedule-split-wrong-chromium\\attachments\\RS-029-result-93ee7f9d3c5d6899bc2ecdda0a1225c7e40919e6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-8d85a774fc8887f2509a",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-030] @deterministic Multiple deposit lines sum to too much commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1209,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:32.062Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-030-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-4b0b5--sum-to-too-much-commission-chromium\\attachments\\RS-030-result-6a18d2354ce96c8ef10ba6cb37762f31343bc2f4.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a20d17d31871ff977880",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-031] @deterministic Multiple deposit lines sum to too little commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1246,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:33.286Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-031-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-596f6-um-to-too-little-commission-chromium\\attachments\\RS-031-result-b91bcb6748849cc21cded7b1268818a16f4a50ed.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-7196bc16786937b68201",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-032] @deterministic Special payout creates extra commission dollars",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 831,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:34.547Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-032-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-aec9f-es-extra-commission-dollars-chromium\\attachments\\RS-032-result-e2e58f41ebc45100effe31159f1ef8ede0116616.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2764ef611e37ed4c8457",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-033] @deterministic Current commission includes prior recovery amount",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 808,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:35.393Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-033-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-46600-ludes-prior-recovery-amount-chromium\\attachments\\RS-033-result-8f5168460b26c6cdba75a07a94f745a063210020.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f3134aca5d33a6ca636e",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-034] @deterministic Actual rate lower than expected",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 854,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:36.215Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-034-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-ceb2c-al-rate-lower-than-expected-chromium\\attachments\\RS-034-result-8f2d8354878de8c2e5d97e1ee2c7d6ac2ed814cd.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f8f8097994494c8e42de",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-035] @deterministic Actual rate higher than expected",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 844,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:37.082Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-035-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-e6b5f-l-rate-higher-than-expected-chromium\\attachments\\RS-035-result-2fa63e78bf3b4e02da4323dadf31bbc9190605e6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6fa5da45d856e1b08564",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-036] @deterministic Classic lower-rate mismatch",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 841,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:37.940Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-036-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-6b5c3-Classic-lower-rate-mismatch-chromium\\attachments\\RS-036-result-a58156d06a6da694780c0ed0bef9a72908dec94e.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-50cb5ba7ffd4e0b272e1",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-037] @deterministic Classic higher-rate mismatch",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 853,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:38.794Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-037-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-6c5bc-lassic-higher-rate-mismatch-chromium\\attachments\\RS-037-result-1ec1b21bd93b42b617ce09568c03bb62ca7ec859.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a78d1052b86bca1a146c",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-038] @deterministic Derived rate disagrees with stored expected rate but paid dollars are internally consistent",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 843,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:39.662Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-038-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-e36c3-s-are-internally-consistent-chromium\\attachments\\RS-038-result-1c637007d07ee3d67271df58486aa5f7325f89db.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-4e8d134306ee11af5118",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-039] @deterministic Carrier-provided rate field does not equal actual commission/usage math",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 879,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:40.520Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-039-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-0c318-ctual-commission-usage-math-chromium\\attachments\\RS-039-result-e5474b545d29fedbe82222f7e0ace54af4db24b2.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c1716db900b0c740f011",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-040] @deterministic Actual rate changes and should apply forward",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 841,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:41.414Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-040-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-8c6ab-es-and-should-apply-forward-chromium\\attachments\\RS-040-result-9be1a778a549b67677879a3021112c7c94245017.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2142f950936dd5f76990",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-041] @deterministic Actual rate differs for a single schedule only",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1047,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:42.269Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-041-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-12e59--for-a-single-schedule-only-chromium\\attachments\\RS-041-result-a789171677a0f95380401d1ba10b6e766cf2068d.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-29ec21265561fcbdb149",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-042] @deterministic One deposit line spans schedules with different expected rates",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1242,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:43.333Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-042-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-8c075-th-different-expected-rates-chromium\\attachments\\RS-042-result-0488b6c87f35669afcb967c07e79abde4e63c030.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-b580ecf9fb0e24dd54fc",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-043] @needs-clarification Multiple deposit lines create weighted actual rate different from expected",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1205,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:44.594Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-043-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-51f34-ate-different-from-expected-chromium\\attachments\\RS-043-result-d7d26cba7fae3f4a7bef506eb9575293aa92084a.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-3ce205df849cdfa6aa8f",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-044] @deterministic Carrier pays no commission rate on active bill",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 896,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:45.812Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-044-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-2c645-mission-rate-on-active-bill-chromium\\attachments\\RS-044-result-26b327e31ad697419ba2e6d31bdde56a6e886508.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-1707fc73953ac9ed6816",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-045] @deterministic Derived actual rate materially above expected norms",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 859,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:46.723Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-045-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-c6913-rially-above-expected-norms-chromium\\attachments\\RS-045-result-5e359d94d5e22a38cedc2c3605530ddcf86e5399.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d3a888675d7fdeb6120f",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-046] @deterministic Usage lower and rate different",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 879,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:47.598Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-046-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-c6f9b-ge-lower-and-rate-different-chromium\\attachments\\RS-046-result-4aad7bc0e925eeb0a342092bede1851857c8ec81.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-98e4bc83fa93717e685a",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-047] @deterministic Usage higher and rate different",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 888,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:48.492Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-047-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-14bc2-e-higher-and-rate-different-chromium\\attachments\\RS-047-result-c07ccd178d853fb45d4a3414d77a95332503375d.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-64060619e25fbf8ad317",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-048] @deterministic Usage exact but paid commission not supported by expected or derived rate",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 865,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:49.394Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-048-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-e7ab4-by-expected-or-derived-rate-chromium\\attachments\\RS-048-result-81ae7d77cf683db4852aa7e7041310b75d83deee.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c2d84b36b55c6b1d3d0f",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-049] @deterministic Paid commission ties to deposit math, but not to schedule expectation",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 877,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:50.275Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-049-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-46299-not-to-schedule-expectation-chromium\\attachments\\RS-049-result-c7deafb2f4cc831e1cca7e943230409cd4732d0c.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-161c3fcf62d180e6b6c7",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-050] @deterministic Usage, rate, and commission all inconsistent",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 910,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:51.166Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-050-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1188f-commission-all-inconsistent-chromium\\attachments\\RS-050-result-ce4def8e49c8c4fdfc49ebb968a4b468ff84dc65.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a179ed8e1dec06d8e037",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-051] @deterministic Usage and commission both misallocated across multiple schedules",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1269,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:52.092Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-051-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-6b95f-d-across-multiple-schedules-chromium\\attachments\\RS-051-result-1344923ce3b0c694193c942eae8e9e350de05b71.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-12d144f648c732223d26",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-052] @needs-clarification Some deposit lines align, others conflict against one schedule",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1293,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:53.376Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-052-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-26b7f-nflict-against-one-schedule-chromium\\attachments\\RS-052-result-e3da9e2411f4cb0a2d13a60b4fc2c1f53fe37660.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9dc7cf546b3b32f7f2bf",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-053] @deterministic Part of deposit reconciles exactly and remainder carries variance",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 907,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:54.685Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-053-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-c94ec--remainder-carries-variance-chromium\\attachments\\RS-053-result-f566b3dc98395a373eb8847bb9d5117fcd47ba66.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c3715ee3f601f7a41bdd",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-054] @deterministic Opposing signals create abnormal effective rate",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 885,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:55.606Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-054-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-9e690-ate-abnormal-effective-rate-chromium\\attachments\\RS-054-result-21ddacb86a6344db1af73fd98d017970f2104b99.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-eab69ae670336445a527",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-055] @deterministic Higher bill with lower paid commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 864,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:56.510Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-055-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-a1676--with-lower-paid-commission-chromium\\attachments\\RS-055-result-54cd9191f0c094f6f91879650330474943627968.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2011dc7d881a702ff776",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-056] @ui-review Distributor and vendor match but secondary metadata sparse",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 867,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:57.390Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-056-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1237e-t-secondary-metadata-sparse-chromium\\attachments\\RS-056-result-4b8d9ac5b32e57972242b5ee3ff588acc26bbd73.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f20107744b35a20d6794",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-057] @ui-review Primary fields match but one secondary ID differs",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 871,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:58.271Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-057-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-82475-ut-one-secondary-ID-differs-chromium\\attachments\\RS-057-result-46e61e41649093a997322b394ddc3de1dbd08354.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a09329d5ffa51b329533",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-058] @ui-review Standard fields weak, Additional Information field confirms schedule",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 902,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:53:59.156Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-058-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-a2160-ion-field-confirms-schedule-chromium\\attachments\\RS-058-result-db09dde490d1030f53118202067ab6cb287f8929.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-056f79a4ff1d75572dac",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-059] @ui-review Names differ but stronger IDs align",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 844,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:00.073Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-059-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-41346-ffer-but-stronger-IDs-align-chromium\\attachments\\RS-059-result-d497e9240b17c0000693e2c1a73fe936b3a52d12.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-891c237262067f2802b4",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-060] @ui-review Friendly account name differs while IDs align",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 821,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:00.931Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-060-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-a074d-ame-differs-while-IDs-align-chromium\\attachments\\RS-060-result-ddb4226d4e267fa4748c5fcceeb64d40fd6256bd.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-908103712c75b119ff9b",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-061] @ui-review Product naming differs between carrier and schedule",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 819,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:01.766Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-061-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-d9cae-etween-carrier-and-schedule-chromium\\attachments\\RS-061-result-60239497e3555e72123bee22522afdd8acf667ee.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2e0cd3642d54d48f3ab7",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-062] @ui-review Service ID absent on deposit but other metadata supports match",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 815,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:02.599Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-062-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-8a531-her-metadata-supports-match-chromium\\attachments\\RS-062-result-7b7b16d439c9347c745776722412e883e2608280.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d38f5f317fc8cb4d9c2f",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-063] @ui-review Location missing but customer/order data aligns",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 838,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:03.428Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-063-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-8864c--customer-order-data-aligns-chromium\\attachments\\RS-063-result-e6c799023543107c707841585cd5dc5a1fe04d9f.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-3a7e461b2252d66917d2",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-064] @ui-review Other order ID absent but service and account align",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 822,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:04.280Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-064-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-3272a-t-service-and-account-align-chromium\\attachments\\RS-064-result-41bf27afc670d5ff02bf05295af5441dfc3b9715.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d7d8a9003d07463de37b",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-065] @ui-review Customer ID absent from schedule/deposit pair",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 816,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:05.116Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-065-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-35459--from-schedule-deposit-pair-chromium\\attachments\\RS-065-result-b0040fac3642a10af7ea11b2b5ee59e336c34701.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9bfdbce7534ae7728e9a",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-066] @ui-review Custom metadata mostly aligns with one conflicting value",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 804,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:05.946Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-066-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-f5672--with-one-conflicting-value-chromium\\attachments\\RS-066-result-b7e0c1cc12ab568b534738c47207602ed0c2401d.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6ade78f8478fceaaf7ab",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-067] @ui-review Only primary fields plus dollar pattern make sense",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 811,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:06.763Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-067-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-78c51-s-dollar-pattern-make-sense-chromium\\attachments\\RS-067-result-6b50517ba1fce41f4a5a1ce44905fa16ab1e92d0.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-56a80885269f52d66231",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-068] @ui-review Deposit could map to more than one valid schedule set",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 799,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:07.587Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-068-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-dc44d-than-one-valid-schedule-set-chromium\\attachments\\RS-068-result-0a36ef6141cf792e0f1e230ff3f49e9e0568b863.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6c0ea54631f08c2dda7c",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-069] @ui-review Two schedules look almost identical for same deposit line",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 817,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:08.400Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-069-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-4fec4-tical-for-same-deposit-line-chromium\\attachments\\RS-069-result-eae85cd2b32bded09e74ce8d4a2d130d1a2d0328.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-ecef5329df91999d7590",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-070] @ui-review Part of deposit cannot be assigned after best match",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 822,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:09.231Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-070-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-7a919-e-assigned-after-best-match-chromium\\attachments\\RS-070-result-fea53da64015cc55cbfd9d4c24d369e4fcde2906.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-5ec6447522a4429dcff1",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-071] @ui-review Applying deposit across schedules would exceed received totals",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1180,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:10.067Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-071-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1aa89-ould-exceed-received-totals-chromium\\attachments\\RS-071-result-8dfac191b5320d6233a7e9361069c4fd3ce167b6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-d8d5d60f63ba0800ec58",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-072] @needs-clarification Not all deposit lines needed but some still selected",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1136,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:11.261Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-072-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-2f41e-ded-but-some-still-selected-chromium\\attachments\\RS-072-result-a6255c17d854c10b15ee82f8a8fbff9ecc272feb.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6b335ef6b06c9d131f13",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-073] @ui-review No schedules satisfy metadata and amount expectations",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 804,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:12.411Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-073-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-d1a24-ata-and-amount-expectations-chromium\\attachments\\RS-073-result-f8c08166f03a9a7807e3f2e6b510cf38c692b070.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-4d2f53763a19cf8dfe01",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-074] @ui-review Bundle deposit appears but only some products exist as schedules",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1202,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:13.228Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-074-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-b4c1f-products-exist-as-schedules-chromium\\attachments\\RS-074-result-2472f82e41ca5d590ff81b0b87f5f7284aff2401.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2c50a7174fce7260783c",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-075] @needs-clarification Multiple lines appear to belong to one opp but different products",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1135,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:14.443Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-075-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-dd7a3--opp-but-different-products-chromium\\attachments\\RS-075-result-4a500b9e33549abc3efb2df1f1a4a21e6dfa5f40.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-31902afc3e6b47cc476f",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-076] @ui-review Names align but deal-specific IDs point elsewhere",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 906,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:15.592Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-076-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-5cbf6-pecific-IDs-point-elsewhere-chromium\\attachments\\RS-076-result-2bcae99c2fc53633eb6891f23e7cb9aa9c4f143c.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-fc2cfb24947690111663",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-077] @ui-review One line may apply to several product types under same account",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1346,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:16.514Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-077-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-c340a-ct-types-under-same-account-chromium\\attachments\\RS-077-result-6550aaeb695befef693abc8bd758aa9d6868ec79.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9bd280e196726608411e",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-078] @deterministic Carrier pays prior month in current file",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 825,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:17.875Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-078-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-f8fa8-prior-month-in-current-file-chromium\\attachments\\RS-078-result-ad3a8d4426f81c7a568241f95bdb7724f95e9cdc.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-7ad690480873331b09cd",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-079] @deterministic Carrier prepays earlier than expected",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 821,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:18.714Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-079-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-238e9-epays-earlier-than-expected-chromium\\attachments\\RS-079-result-0d31d551a4c8c500a557540d94adbfcf291dea45.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9c407d4f84daad24cb4d",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-080] @deterministic Standard line includes unexpected extra commission",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1035,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:19.549Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-080-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-a6d33-unexpected-extra-commission-chromium\\attachments\\RS-080-result-abc040e273a6be32de1a838ac3a9cc186eb3cf4e.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-aba73636a04939b25820",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-081] @deterministic Current line reduced by prior-period chargeback",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1012,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:20.600Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-081-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-74fbc--by-prior-period-chargeback-chromium\\attachments\\RS-081-result-619328ec62f2ba1ebfb0ea9141f084d208c295e6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9964eb1b2474984828b8",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-082] @deterministic Metadata aged but IDs and amounts fit",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 843,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:21.627Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-082-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-4ef1b-ged-but-IDs-and-amounts-fit-chromium\\attachments\\RS-082-result-7f98bf52ecfd5d64e627d390a360cb9293b8a0cf.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-c5ea492b84789c174963",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-083] @deterministic Customer name text wrong but unique IDs right",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1018,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:22.485Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-083-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-168d0--wrong-but-unique-IDs-right-chromium\\attachments\\RS-083-result-9900d11c48eab54f424ce91a4daa2eddc0f0ff64.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-e57936a385dc75ad8c05",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-084] @deterministic Carrier pays a line that should no longer be active",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 896,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:23.520Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-084-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-76397--should-no-longer-be-active-chromium\\attachments\\RS-084-result-daa1ac671aad28abb6bd1ce0c656ede0c813b96a.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-9ba1d54b6b581dca506d",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-085] @deterministic Deposit line contains only vendor/distributor and dollars",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 899,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:24.430Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-085-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-05950-dor-distributor-and-dollars-chromium\\attachments\\RS-085-result-ec3038730717ec14366e4ffa52c07dd7fb4a5220.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-8449429121a8986dbdff",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-086] @deterministic Actual rate includes extra decimal precision before rounding",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 847,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:25.343Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-086-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-8861f-l-precision-before-rounding-chromium\\attachments\\RS-086-result-4faab67912d1a4ca7655eb429b4cc27e82413d30.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-0bf9958daa13cfe74738",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-087] @deterministic Actual commission not tied proportionally to usage",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 830,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:26.206Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-087-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1a9b3-ied-proportionally-to-usage-chromium\\attachments\\RS-087-result-c5d4c311b1868e43b8f8934decc81daa47fe3767.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-67cec291ce4eed6d2686",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-088] @deterministic Commission off by $0.01 high",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 848,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:27.050Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-088-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-02ffb-Commission-off-by-0-01-high-chromium\\attachments\\RS-088-result-4324feaae58edbc3dab8d6bca7efe30f138e1ab9.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-bc89685270080b667bc3",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-089] @deterministic Commission off by $0.01 low",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 843,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:27.914Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-089-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-da94d--Commission-off-by-0-01-low-chromium\\attachments\\RS-089-result-671146101955106c6280145d19ede405f69c53a3.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-0e2344274237853a1a02",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-090] @deterministic Split leaves one-cent remainder",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1141,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:28.770Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-090-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-1cd36-t-leaves-one-cent-remainder-chromium\\attachments\\RS-090-result-a73d5da4a73ee107b3868e18a61d4a82602ad4d8.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-042bb12f01a6a0a622de",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-091] @needs-clarification Aggregated lines create cent residual",
+          "ok": true,
+          "tags": [
+            "needs-clarification"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1134,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:29.926Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-091-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-48094--lines-create-cent-residual-chromium\\attachments\\RS-091-result-e5f14ca40fd6ae3fb06dd38a1703538aaaab17dc.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-0dac3c2b756ea9b43042",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-092] @deterministic Actual derived rate rounds to expected after 2 decimals",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 827,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:31.073Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-092-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-5e58b-o-expected-after-2-decimals-chromium\\attachments\\RS-092-result-9d13b8721024330d78139a3b707c91250d35174e.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-6ea66c4b4c496efd0aeb",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-093] @deterministic Actual derived rate rounds below expected at 2 decimals",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 818,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:31.914Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-093-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-28689-elow-expected-at-2-decimals-chromium\\attachments\\RS-093-result-5bf2ef9f247da5065afec9c9bf396c7a10710d9a.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-e1d8f10e423300bbfda8",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-094] @deterministic One split line looks off but total is exact",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1127,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:32.747Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-094-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-3efb4-ooks-off-but-total-is-exact-chromium\\attachments\\RS-094-result-777f9254965aaff87b4c364bcb2e33f53c067834.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-00348215d8b49a2adff6",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-095] @deterministic Both usage and commission differ slightly from rounding",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 793,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:33.887Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-095-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-78a0c-ffer-slightly-from-rounding-chromium\\attachments\\RS-095-result-51f430e473d0b83dc8f3ce28857346046bb447f9.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-b7ab0b9baed86cc7b190",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-096] @deterministic Small usage rounding cannot explain large commission gap",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 787,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:34.694Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-096-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-726c5-xplain-large-commission-gap-chromium\\attachments\\RS-096-result-a47aff4c8cfcefb6fee8ac5e74b9afc594cbef2d.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f31588c6649b16f9d8f8",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-097] @deterministic Rounded display shows 0 but underlying source created cents",
+          "ok": true,
+          "tags": [
+            "deterministic"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 780,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:35.494Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-097-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-18b92-rlying-source-created-cents-chromium\\attachments\\RS-097-result-4ab7a0fc20967b36cfdd237180ca1f78b455b66c.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a7acebe83563a69c7b4c",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-098] @ui-review User accepts actual rate for current schedule only",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 777,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:36.287Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-098-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-dee17-e-for-current-schedule-only-chromium\\attachments\\RS-098-result-30b0cf5375980c021895ab0ed12090022e8529eb.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f70e392bed04523c3c51",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-099] @ui-review User accepts actual rate for this and future schedules",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 785,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:37.078Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-099-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-0-3af3d-r-this-and-future-schedules-chromium\\attachments\\RS-099-result-2b214010a5f354d7d7bd0fc5b80a09cf14e7aa72.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-43fc26d4e17dde0570aa",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-100] @ui-review User accepts actual rate and updates master catalog",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 786,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:37.877Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-100-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-65eca--and-updates-master-catalog-chromium\\attachments\\RS-100-result-45bda0076e1fe6cffb6b688139ab9a0b6c84c743.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-2b9b308e0fce3456a0c4",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-101] @ui-review User agrees actual usage is valid one-off variance",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 788,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:38.676Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-101-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-954fd-e-is-valid-one-off-variance-chromium\\attachments\\RS-101-result-fc4502aebc249a4373ddc5024d8e7a7a535f97ae.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-f71cb85f5492367eba55",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-102] @ui-review User manually distributes deposit across schedules",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1083,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:39.477Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-102-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-13646-es-deposit-across-schedules-chromium\\attachments\\RS-102-result-c29f5e789cb13ec2f0fff60f801e3f2bec27fd21.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-a5710754f77308efe1b9",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-103] @ui-review User accepts matched portion and leaves remainder open",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 788,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:40.574Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-103-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-9f583-n-and-leaves-remainder-open-chromium\\attachments\\RS-103-result-901cffb79306cdd46896a8c445085bf715151f2f.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-276e29c0059bc40200b8",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-104] @ui-review User decides candidate is wrong despite strong metadata",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 786,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:41.376Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-104-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-e6504-ong-despite-strong-metadata-chromium\\attachments\\RS-104-result-4c36fd7d010fc4fb036028130183a92b04e480f7.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-07d5690516afccbfbe84",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        },
+        {
+          "title": "[RS-105] @ui-review User confirms spiff/flat/minimum payout is valid",
+          "ok": true,
+          "tags": [
+            "ui-review"
+          ],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 787,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-07T14:54:42.176Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "RS-105-result",
+                      "contentType": "application/json",
+                      "path": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-07_10-51-55\\test-results\\reconciliation-suite--RS-1-f3699-lat-minimum-payout-is-valid-chromium\\attachments\\RS-105-result-c32122c8fce19e1f28a5587598b8c7bf0cbb88e6.json"
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "996422da3ade357e3f7f-bdea3d1b268ba01ac254",
+          "file": "reconciliation-suite.spec.ts",
+          "line": 1778,
+          "column": 7
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-07T14:51:56.886Z",
+    "duration": 166463.521,
+    "expected": 105,
+    "skipped": 0,
+    "unexpected": 1,
+    "flaky": 0
+  }
+}

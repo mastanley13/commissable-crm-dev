@@ -1,0 +1,29 @@
+{
+  "scenarioId": "RS-003",
+  "title": "Single deposit line splits cleanly across multiple schedules",
+  "lane": "deterministic",
+  "status": "pass-pending-ui-review",
+  "startedAt": "2026-04-07T14:52:31.088Z",
+  "finishedAt": "2026-04-07T14:52:37.787Z",
+  "notes": [
+    "Current live TC-04 wizard previews a clean 1:M allocation across the intended TC-04 schedule trio.",
+    "Left as pass-pending-ui-review because the operator-facing allocation and final confirm flow still need a human acceptance pass in the current shared DB state."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-003-tc04-1tom-preview",
+      "path": "test-results/reconciliation-suite--RS-0-fec5a-y-across-multiple-schedules-chromium/rs-003-tc04-1tom-preview.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "tc04-1tom-preview",
+    "depositId": "e70b304d-a4ab-4367-a983-3040460cbb1e",
+    "lineId": "3efe948b-cc82-4c21-94f4-b0b9e5a4195a",
+    "scheduleIds": [
+      "c5bacc78-363b-470f-a4ab-1b211184b02f",
+      "518caafd-7d8e-4794-83a1-1e50e3468583",
+      "1e3f1193-b23c-4e32-bf0a-adb687ce87fc"
+    ]
+  }
+}

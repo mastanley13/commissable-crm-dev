@@ -1,0 +1,31 @@
+{
+  "scenarioId": "RS-068",
+  "title": "Deposit could map to more than one valid schedule set",
+  "lane": "ui-review",
+  "status": "blocked",
+  "startedAt": "2026-04-07T14:54:07.637Z",
+  "finishedAt": "2026-04-07T14:54:08.267Z",
+  "reason": "Deposit detail endpoint returned HTTP 500 for the mapped runtime fixture.",
+  "notes": [
+    "The browser reached the deposit route, but the underlying detail API was not healthy in the shared TEST DB.",
+    "Marked blocked instead of failed because this is an environment/runtime-fixture issue, not a verified reconciliation logic regression."
+  ],
+  "artifacts": [
+    {
+      "label": "rs-068-detail-error",
+      "path": "test-results/reconciliation-suite--RS-0-dc44d-than-one-valid-schedule-set-chromium/rs-068-detail-error.png"
+    }
+  ],
+  "execution": {
+    "mode": "browser-live",
+    "flowId": "tc04-conflict-set",
+    "depositId": "e70b304d-a4ab-4367-a983-3040460cbb1e",
+    "lineId": "3efe948b-cc82-4c21-94f4-b0b9e5a4195a",
+    "scheduleIds": [
+      "5a72fad8-2ad0-4adf-8732-ffb4894e421f",
+      "c5bacc78-363b-470f-a4ab-1b211184b02f",
+      "518caafd-7d8e-4794-83a1-1e50e3468583",
+      "1e3f1193-b23c-4e32-bf0a-adb687ce87fc"
+    ]
+  }
+}
