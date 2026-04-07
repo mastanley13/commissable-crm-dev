@@ -1,0 +1,4 @@
+Scenario ID,Source Ref,Phase,Commission Period,Commission Payment Date,Customer Business Name,Customer Id,Location Id,Acquired Master Agency Name,Supplier Name,Telarus Order Id,Product Code,Services,Total Bill,Commission Rate,Commission Role - Master Agent,Description
+RS-030,RS-030,commission-overage-1,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Internet,400.00,10.00,40.00,RS-030 commission overage line 1
+RS-030,RS-030,commission-overage-2,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Voice,350.00,10.29,36.00,RS-030 commission overage line 2
+RS-030,RS-030,commission-overage-3,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Managed Svc,250.00,11.20,28.00,RS-030 commission overage line 3

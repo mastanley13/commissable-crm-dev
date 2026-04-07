@@ -1,0 +1,4 @@
+Scenario ID,Source Ref,Phase,Commission Period,Commission Payment Date,Customer Business Name,Customer Id,Location Id,Acquired Master Agency Name,Supplier Name,Telarus Order Id,Product Code,Services,Total Bill,Commission Rate,Commission Role - Master Agent,Description
+RS-020,RS-020,underage-1,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Internet,350.00,10.00,35.00,RS-020 underage line 1
+RS-020,RS-020,underage-2,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Voice,300.00,10.00,30.00,RS-020 underage line 2
+RS-020,RS-020,underage-3,2026-04,2026-04-15,Edge Business - Miledge,TC05-5001,,Telarus,8x8,ORD-5001,RCN-8X8-BUNDLE,Managed Svc,300.00,10.00,30.00,RS-020 underage line 3
