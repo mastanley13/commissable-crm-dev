@@ -49,7 +49,7 @@ Known status from baseline:
 
 ## Bucket 1: Blocked Engineering
 
-### Active Cluster: grouped-allocation mapping conflict
+### Active Cluster: grouped-allocation wording and crosswalk cleanup
 
 Priority: `P0`
 
@@ -72,7 +72,7 @@ Family rows:
 
 Related handwritten case:
 
-- `TC-05` `1:M Wizard`
+- `TC-05` `1:M Wizard` (`TC-05` is the handwritten label; use it as the live grouped `M:1` analogue)
 
 Execution checklist:
 
@@ -84,35 +84,36 @@ Execution checklist:
 - [ ] Verify residual and rounding behavior
 - [x] Verify undo or cleanup path
 - [x] Prove the fixture is rerun-safe
-- [ ] Promote `RS-019` from representative blocker to proven path once a true `M:1` fixture exists
-- [ ] Rerun the remaining grouped-family rows against the same proof standard after remapping
-- [ ] Update the `TC-05` / stale `TC-04` mapping notes based on the family result
+- [x] Promote `RS-019` from representative blocker to proven `M:1` runtime path
+- [x] Rerun the remaining grouped-family rows against the same proof standard after remapping
+- [x] Update the `TC-05` / stale `TC-04` mapping notes based on the family result
 
 Definition of done:
 
 - the stale `TC-04` one-line runtime is no longer treated as valid proof for this family
-- one true representative `M:1` path is proven end-to-end or explicitly deferred pending a new fixture
+- one true representative `M:1` path is proven end-to-end
 - `TC-05` and the grouped-family manual anchor are no longer ambiguous
 
 Latest synthesis:
 
 1. Scope proved:
-   `RS-020` now has a true many-lines-to-one underage proof using the dedicated deposit `74116291-3f21-4e52-91c5-1953ccf34174` against `RCN-TC05-2026-04` (`bc5393d9-891b-4dea-ab07-9fd981017708`), while `RS-030` and `RS-031` now have dedicated true-shape fixtures but remain blocked by current grouped preview behavior rather than stale runtime shape.
+   The grouped `M:1` lane is now frozen as proven for handwritten closeout: `RS-004` remains the canonical grouped proof, `RS-020` remains the strongest row-specific grouped follow-up, `RS-030` and `RS-031` remain explicit product-rule replacement blocks, `TC-05` now has a recorded pass-ready handwritten disposition, `TC-04` browser evidence was refreshed, `TC-17` branch coverage was refreshed, and the remaining mandatory handwritten rows were checked against targeted integration evidence before one clean full-suite rerun.
 2. Evidence captured:
-   `.artifacts/playwright/reconciliation-suite/history/2026-04-06_08-17-36/scenario-results/RS-020.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_08-29-38/scenario-results/RS-030.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_08-29-38/scenario-results/RS-031.json`
+   Grouped-family proof: `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/reconciliation-summary.md`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/scenario-results/RS-004.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/scenario-results/RS-020.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/scenario-results/RS-030.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/scenario-results/RS-031.json`. Refreshed `TC-04` / `TC-17` branch evidence: `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/reconciliation-summary.md`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/scenario-results/RS-001.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/scenario-results/RS-003.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/scenario-results/RS-073.json`. Latest saved full-suite artifact rerun: `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-12-31/reconciliation-summary.md`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-12-31/scenario-results/RS-033.json`; `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-12-31/scenario-results/RS-042.json`. Targeted integration closeout evidence: `tests/integration-deposit-import-route.test.ts` (`DU-AUTO-16` pass), `tests/integration-chargeback-scenarios.test.ts` (`CHARGEBACK-03` pass), `tests/integration-reconciliation-match-group-undo.test.ts` (`REC-MATCH-GROUP-UNDO-01` pass), `tests/integration-reconciliation-unmatch-regression.test.ts` (`REC-UNMATCH-04` pass, `REC-UNMATCH-05` fail), `tests/integration-bundle-rip-replace.test.ts` (`REC-AUTO-BUNDLE-05` pass, `REC-AUTO-BUNDLE-06` fail), `tests/integration-revenue-schedule-change-start-date.test.ts` (`REV-CHANGE-START-DATE` shift + collision pass), `tests/integration-reconciliation-ai-adjustment.test.ts` (`REC-AUTO-13/14` pass), `tests/integration-reconciliation-rate-discrepancy.test.ts` (`REC-RATE-04/05` fail), `tests/integration-month-to-month-schedules.test.ts` (`M2M-AUTO-01` and `M2M-AUTO-03` pass).
 3. Canonical files updated:
-   `generated/scenario-manifest.json`; grouped-family Playwright reporting/runner files; dedicated grouped fixture CSVs for `RS-020`, `RS-030`, and `RS-031`
+   sprint board
 4. Residual risk:
-   `TC-05` should still remain non-pass until the explicit operator-facing acceptance pass is completed; `RS-030` / `RS-031` are now blocked by grouped preview behavior on true fixtures; `RS-019`, `RS-043`, `RS-052`, `RS-072`, `RS-075`, and `RS-091` are downgraded to runtime-path validation only until row-specific fixtures exist
+   `TC-04` still needs final operator allocation confirmation even though `RS-003` reran cleanly as `pass-pending-ui-review`. `TC-17` now has current branch coverage (`RS-001` pass, `RS-003` pass-pending-ui-review, `RS-073` pass) but does not yet have a dedicated mixed-file upload-to-finalization signoff. `TC-06`, `TC-11`, and `TC-15` each showed a closeout-phase regression or unresolved defect signal and should stay open. Current April 7 reporting is now `pass: 6`, `pass-pending-ui-review: 95`, `fail: 1`, `blocked: 3`; the old `67 blocked` full-suite story is outdated and should not be used in stakeholder status updates.
 5. Exact next row set:
-   `TC-05` operator acceptance review, then `RS-043`, `RS-052`, `RS-072`, `RS-075`, and `RS-091`
+   `TC-04` final operator confirm, `TC-17` mixed-file signoff, `TC-15` unmatch defect triage, `TC-06` bundle replacement defect triage, `TC-11` future-update carry-over defect triage
 
 ### Next Engineering Items
 
-- `TC-05` `1:M Wizard`
-- `TC-14` `Chargeback and Reversal`
-- `TC-15` `Undo Flows`
-- `TC-06` `Bundle Find-and-Replace`
+- `TC-04` `M:1 Wizard` final operator confirm against refreshed `RS-003`
+- `TC-17` `Deposit Flows (End-to-End)` mixed-file upload/finalization signoff
+- `TC-15` `Undo Flows` defect follow-up on `REC-UNMATCH-05`
+- `TC-06` `Bundle Find-and-Replace` defect follow-up on `REC-AUTO-BUNDLE-06`
+- `TC-11` `Updates Carry-Over` defect follow-up on `REC-RATE-04/05`
 
 ## Bucket 2: Manual Acceptance
 
@@ -120,27 +121,31 @@ These are mandatory before calling the sprint client-ready.
 
 ### Mandatory handwritten row set
 
-- [ ] `TC-04` `M:1 Wizard`
-- [ ] `TC-05` `1:M Wizard`
-- [ ] `TC-06` `Bundle Find-and-Replace`
-- [ ] `TC-10` `Mass Change Start Date`
-- [ ] `TC-11` `Updates Carry-Over`
-- [ ] `TC-13` `Month-to-Month`
-- [ ] `TC-14` `Chargeback and Reversal`
-- [ ] `TC-15` `Undo Flows`
-- [ ] `TC-16` `Deposit Upload Ignore Totals`
-- [ ] `TC-17` `Deposit Flows (End-to-End)`
+- [ ] `TC-04` `M:1 Wizard` (handwritten label; live analogue is `1:M`) - `pass-pending-ui-review`; refreshed in `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/scenario-results/RS-003.json`, but final operator-facing allocation confirm is still required.
+- [x] `TC-05` `1:M Wizard` (handwritten label; live analogue is grouped `M:1`) - handwritten disposition recorded as `pass-ready`; canonical proof is `RS-004` with `RS-020` as supporting grouped follow-up, while `RS-030` and `RS-031` stay logged as product-rule replacement blocks rather than contradictory proof.
+- [ ] `TC-06` `Bundle Find-and-Replace` - not closed; `REC-AUTO-BUNDLE-05` passed the mixed-rate replacement guard, but `REC-AUTO-BUNDLE-06` failed during replacement-success verification.
+- [x] `TC-10` `Mass Change Start Date` - pass via `REV-CHANGE-START-DATE` shift and collision-guard integration checks.
+- [ ] `TC-11` `Updates Carry-Over` - mixed evidence; `REC-AUTO-13/14` passed the apply-to-future path, but `REC-RATE-04/05` failed in the closeout rerun, so the handwritten case stays open.
+- [x] `TC-13` `Month-to-Month` - pass via `M2M-AUTO-01` and `M2M-AUTO-03`.
+- [x] `TC-14` `Chargeback and Reversal` - pass via `CHARGEBACK-03`, with junk-row ignore support reconfirmed by `DU-AUTO-16`.
+- [ ] `TC-15` `Undo Flows` - mixed / defected; `REC-MATCH-GROUP-UNDO-01` and `REC-UNMATCH-04` passed, but `REC-UNMATCH-05` failed, so the handwritten row is not closed.
+- [x] `TC-16` `Deposit Upload Ignore Totals` - pass via `DU-AUTO-16`.
+- [ ] `TC-17` `Deposit Flows (End-to-End)` - branch evidence is current (`RS-001` pass, `RS-003` pass-pending-ui-review, `RS-073` pass), but the dedicated mixed-file upload-to-finalization signoff is still open.
 
 ### Current acceptance sequence
 
 Run in this order:
 
-1. `TC-04`
-2. `TC-17`
-3. `TC-16`
-4. `TC-14`
+Use the live physical directionality when executing:
+- `TC-04` = one deposit line to many schedules (`1:M`)
+- `TC-05` = many deposit lines to one schedule (grouped `M:1`)
+
+1. `TC-05`
+2. `TC-04`
+3. `TC-17`
+4. `TC-16`
 5. `TC-15`
-6. `TC-05`
+6. `TC-14`
 7. `TC-06`
 8. `TC-10`
 9. `TC-11`
@@ -194,32 +199,35 @@ These are explicitly out of the critical path unless someone says they block cli
 
 ## Current Lane
 
-Current lane: `execute`
+Current lane: `verify`
 
 Current row set:
 
-- `TC-05` operator acceptance review
-- `RS-043`
-- `RS-052`
-- `RS-072`
-- `RS-075`
-- `RS-091`
+- `TC-04`
+- `TC-17`
+- `TC-15`
+- `TC-06`
+- `TC-11`
 
 Immediate goal:
 
-- keep `RS-020` as the first true grouped-family underage proof, preserve `RS-030` / `RS-031` as true-fixture blocked evidence, and replace or explicitly defer the remaining stale shape-only grouped rows
+- hold the grouped-family lane closed, use the refreshed browser plus integration evidence as the handwritten source of truth, and finish only the unresolved acceptance rows without reopening family-mapping work
 
 Immediate inputs:
 
-- scenario artifacts for `RS-020`, `RS-030`, and `RS-031`
-- live grouped allocation browser path plus the runtime-path validation labels in `generated/scenario-manifest.json`
-- canonical status targets in `Reconciliation Scenarios.csv` and `Handwritten Test Cases.csv`
+- corrected handwritten-to-runtime directionality (`TC-04` = live `1:M`, `TC-05` = live grouped `M:1`)
+- grouped-family consolidation summary in `.artifacts/playwright/reconciliation-suite/history/2026-04-06_12-41-31/reconciliation-summary.md`
+- `RS-004` representative grouped proof and `RS-020` row-specific follow-up review evidence
+- blocked mixed-rate result files for `RS-030` and `RS-031`
+- refreshed `TC-04` / `TC-17` branch run in `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-11-39/`
+- full-suite rerun in `.artifacts/playwright/reconciliation-suite/history/2026-04-06_13-12-31/`
+- targeted integration closeout checks for `TC-06`, `TC-10`, `TC-11`, `TC-13`, `TC-14`, `TC-15`, and `TC-16`
 
 Immediate output required:
 
-- one exact grouped-family synthesis note
-- updated board status
-- updated canonical status for `TC-05` only if the family proof becomes conclusive
+- explicit handwritten status for every mandatory row in scope
+- one published current full-suite status after acceptance closeout
+- the grouped-family lane remains frozen unless contradictory evidence appears
 
 ## Synthesis Template
 

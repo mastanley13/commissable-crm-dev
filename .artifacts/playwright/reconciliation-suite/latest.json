@@ -1,15 +1,13 @@
 {
-  "runId": "2026-04-07_10-51-55",
-  "runDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55",
+  "runId": "2026-04-22_full-reconciliation-recorded_14-27-40",
+  "runDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40",
   "suiteName": "reconciliation-suite",
-  "generatedAt": "2026-04-07T14:54:44.290Z",
+  "generatedAt": "2026-04-22T18:53:43.795Z",
   "scenarioCount": 105,
   "isFullSuiteRun": true,
   "statusCounts": {
-    "pass": 2,
-    "pass-pending-ui-review": 1,
-    "fail": 1,
-    "blocked": 101
+    "pass": 56,
+    "pass-pending-ui-review": 49
   },
-  "reconciliationSummaryJson": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-55/reconciliation-summary.json"
+  "reconciliationSummaryJson": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\reconciliation-summary.json"
 }

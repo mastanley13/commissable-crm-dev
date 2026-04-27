@@ -1,13 +1,13 @@
 {
-  "runId": "2026-04-07_10-51-08",
-  "runDir": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08",
+  "runId": "first-pass-video-trace-smoke",
+  "runDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\first-pass-video-trace-smoke",
   "suiteName": "reconciliation-suite",
-  "generatedAt": "2026-04-07T14:51:44.880Z",
+  "generatedAt": "2026-04-22T17:37:59.897Z",
   "scenarioCount": 105,
   "isFullSuiteRun": false,
   "statusCounts": {
-    "not-recorded": 104,
-    "blocked": 1
+    "pass": 1,
+    "not-recorded": 104
   },
-  "reconciliationSummaryJson": ".artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/reconciliation-summary.json"
+  "reconciliationSummaryJson": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\first-pass-video-trace-smoke\\reconciliation-summary.json"
 }

@@ -1,16 +1,19 @@
 # Commissable CRM April 18-27th Summary
 
 ## 1. Executive Summary
-- April 18-27 activity split into a small committed OpenClaw/API change set and a much larger uncommitted local worktree.
+- April 18-27 activity split into a small committed OpenClaw/API change set, a large local worktree, and an April 27 curated staged lane prepared for the user to commit.
 - Committed work is narrow and reviewable: two April 22 commits added/allowed the OpenClaw read-only tool gateway.
-- Local work is broad: 75 modified tracked files and 525 untracked files before this summary was added, plus schema/migration changes, admin import work, OpenClaw/browser chat work, Playwright reconciliation evidence, resource-center UI, tests, scripts, generated files, and docs.
-- Completion confidence is mixed. The local unit test command passed where tests were not env-gated, and a follow-up TypeScript/build pass on April 27 is now clean; DB-backed integration tests were still skipped; current OpenClaw browser smoke evidence says local chat cannot reach a live gateway.
-- Main blockers are dirty working tree cleanup, unverified DB migrations/import writes, skipped integration tests, stale or partially reviewed Playwright evidence, and security-sensitive files/docs that need review before sharing.
-- Final status is not ready for handoff as-is. The committed OpenClaw gateway can be reviewed separately, but the uncommitted local work is incomplete/high risk until cleaned, typechecked, and selectively committed.
+- The staged lane is broad but reviewable as a single source/update package: 160 staged files, 90 added and 70 modified, covering app/API routes, components, Prisma migrations/schema, scripts, tests, `.gitignore`, and curated summary/prep docs.
+- Completion confidence improved on April 27: TypeScript, unit tests, and production build all pass for the current staged working state. DB-backed integration tests are still skipped unless explicitly enabled, and current OpenClaw browser/Telegram smoke readiness remains unverified.
+- Main blockers are commit/PR review, skipped DB-backed integration tests, unverified migration application/import writes, stale or partially reviewed Playwright evidence, and quarantined security-sensitive/local artifact files.
+- Final status is not production-ready by evidence alone. The staged lane is ready for human review/commit if the team accepts the skipped-test caveats, but the remaining unstaged and untracked local work must stay quarantined.
 
 ## 2. Completed Work
 - [Committed] `5252dc2` updated `middleware.ts` to allow the OpenClaw bot API path through middleware.
 - [Committed] `9ca6e2b` added `app/api/bot/v1/tools/[...path]/route.ts` and `docs/runbooks/2026-04-22_openclaw-readonly-tool-gateway.md` for a read-only OpenClaw tool gateway.
+- [Staged/local] A curated April 27 source lane is staged for user-controlled commit: 160 files changed, 27,770 insertions, 2,714 deletions, 90 added files, 70 modified files, and no staged deletions.
+- [Staged/local] The April 27 staged lane passed `npx tsc --noEmit --incremental false`, `npm run test`, and `npm run build`.
+- [Staged/local] Staged filename and high-confidence secret scans found no obvious `.env`, raw workbook/document, generated artifact, bot status, API key, private key, token, or credentialed database URL exposure in the staged diff.
 - [Local/uncommitted] Admin import UI/API work appears implemented for validate-only mode, file/job metadata, recent import display, import error CSV export, and import-job undo previews/actions.
 - [Local/uncommitted] Prisma schema and migration files add import undo tracking, import job records, account Salesforce IDs, opportunity line item imports, and historical deposit transaction import metadata.
 - [Local/uncommitted] Admin import coverage was expanded across accounts, account owners, contacts, products, opportunities, opportunity line items, revenue schedules, deposit transactions, import jobs, and error context.
@@ -21,8 +24,9 @@
 - [Local/uncommitted] Account Salesforce ID handling exists in account APIs and create/edit modals, with uniqueness/format validation.
 
 ## 3. In-Progress Work
-- The local worktree remains dirty and very large: `git diff --shortstat` reports 75 tracked files changed with 6,705 insertions and 3,032 deletions, plus 525 untracked files from `git ls-files --others --exclude-standard` before this summary file was created.
-- TypeScript was failing on `lib/openclaw/read-only-tools.ts` because `rankTopUsageAccounts` returned `rankingBasis` as `string` instead of the literal union `"actual_usage_net" | "expected_usage_net"`. This was fixed in the April 27 follow-up, and `npx tsc --noEmit --incremental false` now passes.
+- The local worktree remains dirty after staging. The reviewed lane is staged, but tracked unstaged files still include Playwright artifact JSONs, a canonical sprint board, a generated scenario manifest, `docs/runbooks/Cloud_SQL_Proxy_Launch_Guide.md`, and `docs/test-data/data-settings-imports/opportunities-uat.csv`.
+- Visible untracked files remain high after `.gitignore` cleanup: 306 untracked files are still visible, dominated by `docs/**` planning/source bundles plus several root CSV/MD handoff files.
+- TypeScript was previously failing on `lib/openclaw/read-only-tools.ts` because `rankTopUsageAccounts` returned `rankingBasis` as `string` instead of the literal union `"actual_usage_net" | "expected_usage_net"`. This was fixed in the April 27 follow-up and is now included in the staged lane.
 - DB-backed integration tests are present but skipped because `RUN_INTEGRATION_TESTS=1` / test DB settings were not enabled.
 - Admin import migrations are present locally, but I did not verify they were applied to a real test database.
 - OpenClaw browser smoke evidence from April 23 shows 7/7 browser prompts failed because local `/api/openclaw/chat` was not configured to reach a live OpenClaw gateway.
@@ -50,10 +54,11 @@
 - [Local/uncommitted] Browser chat degraded-mode copy was tightened after smoke failures, but live gateway validation remains pending.
 
 ## 6. Risks or Concerns
-- Dirty working tree is the largest operational risk. The local changes are too broad to hand off or deploy without splitting into reviewed commits.
-- Typecheck is no longer a blocker after the April 27 follow-up fix, but the fix remains local/uncommitted.
-- Untracked volume is high: docs/generated files dominate, but there are also untracked app routes, components, libraries, scripts, tests, migrations, spreadsheets, transcripts, CSVs, and run artifacts.
+- Dirty working tree remains the largest operational risk. A curated source lane is staged, but additional tracked and untracked local files remain outside the staged set.
+- Typecheck is no longer a blocker after the April 27 follow-up fix, and the fix is staged but not committed.
+- Untracked volume is still high: docs/source bundles dominate, but there are also root CSV/MD handoff files and full/minimum validation test-data packages outside the staged lane.
 - Security-sensitive files/docs require cleanup. `.env` and `.env.local` exist locally and are ignored; `cookies.txt` is tracked; `Commissable Bot Build - Status & Next Steps.md` contains credential-style operational details including a Telegram bot token. Rotate/revoke exposed credentials before sharing or committing.
+- Staged sensitive-content scans did not find high-confidence live secrets, but keyword hits remain in expected auth/config code and docs. Those should be reviewed as placeholders/config references before merge.
 - `npx prisma validate` loaded environment variables from `.env`; no secret values were printed, but this confirms local env files are active in tooling.
 - DB-backed admin import tests were skipped, so validate-only/no-write behavior, import job persistence, undo behavior, and migration application are not proven against a real DB in this run.
 - The OpenClaw browser smoke run is currently failed/blocked locally, and Telegram smoke coverage is explicitly unverified.
@@ -62,12 +67,12 @@
 - Several commands produced LF/CRLF warnings on tracked files. This is not a functional failure, but it can create noisy diffs.
 
 ## 7. Suggested Next Steps
-1. Split local work into reviewable lanes: committed OpenClaw gateway follow-up, admin import/import undo, schema/migrations, Playwright reconciliation evidence, resource center, and generated docs/artifacts.
-2. Keep the April 27 TypeScript fix in the OpenClaw lane and include the passing typecheck/build evidence in that PR.
-3. Remove or quarantine security-sensitive docs/files before handoff; rotate any exposed bot/API tokens and avoid committing `.env` contents.
-4. Apply and verify the April migrations against the approved test/dev database, then run DB-backed integration tests with `RUN_INTEGRATION_TESTS=1` and the correct test DB URL.
-5. Rerun `npm run test` after typecheck is fixed and integration env is configured; track pass/fail/skip counts separately.
-6. Run `npm run build` only after typecheck is clean.
+1. Before committing, review the staged diff one last time with `git diff --cached --stat` and `git diff --cached --name-status`.
+2. Commit only the staged lane if the team accepts the skipped DB integration and live smoke caveats.
+3. Push to a review branch first, not directly to `main`, so GitHub CI/PR review can validate the broad source lane.
+4. Keep the remaining unstaged/untracked docs, artifacts, generated files, source bundles, and `Commissable Bot Build - Status & Next Steps.md` quarantined until separately reviewed/redacted.
+5. Rotate/revoke any exposed bot/API credentials before sharing sensitive operational docs.
+6. Apply and verify the April migrations against the approved test/dev database, then run DB-backed integration tests with `RUN_INTEGRATION_TESTS=1` and the correct test DB URL.
 7. Configure local OpenClaw gateway env and rerun the April 23 browser smoke subset; add a Telegram/cross-channel execution path or explicitly defer it.
 8. Reconcile Playwright status language: promote only verified `pass` rows, keep `pass-pending-ui-review` separate, and document stale artifacts by absolute run date.
 9. Decide which generated docs, workbooks, CSVs, and `.artifacts` outputs belong in source control versus external evidence storage.
@@ -78,6 +83,9 @@
 - `git show --stat --oneline --decorate --find-renames 5252dc2 9ca6e2b`
 - `git show --name-status --find-renames --pretty=format:"COMMIT %h %ad %s" --date=iso 5252dc2 9ca6e2b`
 - `git diff --stat`, `git diff --shortstat`, `git diff --name-only`
+- `git diff --cached --stat`
+- `git diff --cached --name-only`
+- `git diff --cached --name-status`
 - `git ls-files --others --exclude-standard`
 - `Get-Content package.json`
 - `Get-Content tsconfig.json`
@@ -87,39 +95,44 @@
 - `Get-Content docs/plans/2026-04-20-import-openclaw-completion-sprint/2026-04-23_openclaw-smoke-subset-run-01.md`
 - `Get-Content docs/plans/2026-04-20-import-openclaw-completion-sprint/2026-04-23_openclaw-first-pass-findings.md`
 - `rg -l -i "(api[_-]?key|secret|token|password|database_url|bearer|telegram|ssh key|private key)" --glob "!node_modules/**" --glob "!.next/**" --glob "!package-lock.json"`
+- Staged filename sensitive-pattern scan: no matches for obvious secret/raw artifact filename patterns.
+- Staged high-confidence secret-pattern scan: no matches for API keys, private keys, credentialed DB URLs, Telegram bot token patterns, or similar live-secret shapes.
+- Staged broad auth/config keyword scan: expected keyword hits in OpenClaw/API/scripts/tests/docs; treated as review-needed config references, not confirmed live secrets.
 - `npx prisma validate` passed; schema is valid.
 - `npm run test` passed with 268 total tests: 143 pass, 125 skipped, 0 fail.
 - `npx tsc --noEmit --incremental false` initially failed on `lib/openclaw/read-only-tools.ts(888,3)`, then passed after the April 27 follow-up fix.
 - `npm run build` passed after the April 27 follow-up fix, with one non-blocking `<img>` lint warning in `app/(dashboard)/admin/playwright/page.tsx`.
+- April 27 staged review: current branch `main` at `9ca6e2b`; 160 files staged, 90 added, 70 modified, 0 deleted.
+- April 27 remaining unstaged review: 6 tracked files remain unstaged and 306 visible untracked files remain outside the staged lane.
 - Recommended but not run in this pass: `npm run lint`, `npm run pw:recon:test`, DB-backed integration tests, and live OpenClaw/browser/Telegram smoke reruns after configuration is fixed.
 
 ## 9. Final Internal Status
-NEEDS CLEANUP BEFORE HANDOFF.
+HIGH RISK UNTIL COMMITTED.
 
-The committed April 22 OpenClaw gateway work is narrow enough to review, but the active repo state is not handoff-ready. The current local work now typechecks and builds after the April 27 follow-up, but it still has skipped DB-backed tests, failed/unverified OpenClaw smoke evidence, many untracked files, broad generated artifacts, and security-sensitive material that needs cleanup or rotation before the team treats the April 18-27 work as ready.
+The committed April 22 OpenClaw gateway work is narrow enough to review, and the April 27 staged lane now passes TypeScript, tests, and build. It is still high risk until the user commits and pushes it through a review branch/PR, because DB-backed tests are skipped, OpenClaw live smoke remains unverified, and many local artifacts/docs/security-sensitive files remain outside the staged set.
 
 ## 10. Rollup Summary for Master Dev Log
 
 ### One-Line Status
-Needs cleanup before handoff due to broad uncommitted work, skipped DB-backed integration tests, unverified OpenClaw smoke readiness, and security-sensitive local material.
+High risk until committed and reviewed due to a broad staged source lane, skipped DB-backed integration tests, unverified OpenClaw smoke readiness, and quarantined local security/artifact material.
 
 ### Leadership Summary
-The week produced a committed OpenClaw read-only gateway and a large amount of local progress around admin imports, reconciliation QA evidence, Playwright tooling, Salesforce ID support, and bot capability planning. The work matters because it moves Commissable toward safer import operations, better reconciliation proof, and a controlled AI/bot integration path. TypeScript and build are now clean after the April 27 follow-up, but readiness is still blocked by uncommitted and unreviewed local changes, skipped database tests, failed local OpenClaw browser smoke evidence, and files that need security review before handoff.
+The week produced a committed OpenClaw read-only gateway and a broad staged April 27 source lane covering admin imports, reconciliation QA evidence, Playwright tooling, Salesforce ID support, resources, and bot capability planning. The work matters because it moves Commissable toward safer import operations, better reconciliation proof, and a controlled AI/bot integration path. TypeScript, tests, and build are now clean for the staged lane, but readiness still depends on the user committing through review, enabling DB-backed tests, validating live OpenClaw smoke, and keeping sensitive/generated local material out of GitHub.
 
 ### Top 3 Completed Items
 1. Committed the OpenClaw read-only tool gateway and middleware allowance on April 22.
-2. Built local admin import/import-job/undo/error-export work with expanded test coverage.
-3. Expanded local Playwright reconciliation reporting and produced an April 22 full-suite artifact with 56 pass and 49 pass-pending-ui-review scenarios.
+2. Staged a curated April 27 source lane with 160 files and passing TypeScript/test/build verification.
+3. Built local admin import/import-job/undo/error-export work and expanded Playwright reconciliation reporting/test coverage.
 
 ### Top 3 Risks / Blockers
-1. The worktree is very dirty, with broad modified and untracked local work that is not yet reviewed or committed.
+1. The staged lane is broad and still uncommitted, so GitHub/PR review has not happened yet.
 2. DB-backed integration tests, migration application, and live OpenClaw/browser/Telegram smoke readiness remain unverified or blocked.
-3. Security-sensitive local material and generated/customer data artifacts need cleanup or quarantine before GitHub staging.
+3. Security-sensitive local material and generated/customer data artifacts remain outside the staged lane and must stay quarantined.
 
 ### Top 3 Next Actions
-1. Split local changes into reviewed lanes and clean/quarantine generated artifacts and security-sensitive files.
-2. Configure the approved test DB and OpenClaw gateway, then rerun DB-backed integration tests and browser/Telegram smoke checks.
-3. Stage only one reviewed lane at a time for GitHub.
+1. Review the staged diff, then commit the staged lane if accepted.
+2. Push to a review branch and use a PR into `main` instead of pushing directly.
+3. Configure the approved test DB/OpenClaw gateway, then rerun DB-backed integration tests and browser/Telegram smoke checks.
 
 ### Master Status
-Red / Blocked or high-risk
+Yellow / Needs QA or cleanup
