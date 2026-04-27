@@ -27,6 +27,7 @@ interface RevenueScheduleStatusModalProps {
   isOpen: boolean
   schedules: RevenueScheduleStatusModalSchedule[]
   defaultAction?: StatusAction
+  hideDeactivateAction?: boolean
   title?: string
   onClose: () => void
   onSuccess?: () => void | Promise<void>
@@ -44,6 +45,7 @@ export function RevenueScheduleStatusModal({
   isOpen,
   schedules,
   defaultAction = "delete",
+  hideDeactivateAction = false,
   title = "Manage Revenue Schedules",
   onClose,
   onSuccess,
@@ -293,7 +295,9 @@ export function RevenueScheduleStatusModal({
       <div className="flex h-[900px] w-full max-w-[1024px] flex-col overflow-hidden rounded-t-2xl rounded-b-none bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-blue-700 bg-gradient-to-r from-blue-950 via-blue-800 to-blue-700 px-6 py-4 text-white">
           <div>
-            <p className="text-xs font-semibold uppercase text-blue-100">Deactivate or Delete</p>
+            <p className="text-xs font-semibold uppercase text-blue-100">
+              {hideDeactivateAction ? "Delete" : "Deactivate or Delete"}
+            </p>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
           </div>
         </div>
@@ -382,31 +386,33 @@ export function RevenueScheduleStatusModal({
                   placeholder="Provide the reason for this change"
                 />
               </div>
-              <div>
-                <label className={labelCls}>Action</label>
-                <div className="mt-1 flex flex-wrap gap-4 text-xs text-gray-600">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      className="h-4 w-4 text-primary-600 accent-primary-600"
-                      name="status-action"
-                      checked={form.action === "deactivate"}
-                      onChange={() => setForm((prev) => ({ ...prev, action: "deactivate" }))}
-                    />
-                    Deactivate
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="radio"
-                      className="h-4 w-4 text-primary-600 accent-primary-600"
-                      name="status-action"
-                      checked={form.action === "delete"}
-                      onChange={() => setForm((prev) => ({ ...prev, action: "delete" }))}
-                    />
-                    Delete
-                  </label>
+              {!hideDeactivateAction ? (
+                <div>
+                  <label className={labelCls}>Action</label>
+                  <div className="mt-1 flex flex-wrap gap-4 text-xs text-gray-600">
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        className="h-4 w-4 text-primary-600 accent-primary-600"
+                        name="status-action"
+                        checked={form.action === "deactivate"}
+                        onChange={() => setForm((prev) => ({ ...prev, action: "deactivate" }))}
+                      />
+                      Deactivate
+                    </label>
+                    <label className="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        className="h-4 w-4 text-primary-600 accent-primary-600"
+                        name="status-action"
+                        checked={form.action === "delete"}
+                        onChange={() => setForm((prev) => ({ ...prev, action: "delete" }))}
+                      />
+                      Delete
+                    </label>
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
         </div>

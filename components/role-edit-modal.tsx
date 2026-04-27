@@ -127,7 +127,8 @@ const PERMISSION_CATEGORIES = {
       { code: 'admin.roles.manage', name: 'Role management', description: 'Can manage user roles and permissions' },
       { code: 'admin.system.config', name: 'System configuration', description: 'Can configure system settings' },
       { code: 'admin.audit.access', name: 'Audit log access', description: 'Can access audit logs' },
-      { code: 'admin.import_export', name: 'Full import/export rights', description: 'Can import and export all data' }
+      { code: 'admin.import_export', name: 'Full import/export rights', description: 'Can import and export all data' },
+      { code: 'admin.playwright.read', name: 'Read Playwright Results', description: 'Can view Playwright reconciliation runs and artifacts' }
     ]
   },
   System: {

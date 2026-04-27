@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react"
 import { useToasts } from "./toast"
 import { SelectCombobox } from "./select-combobox"
 import { ModalHeader } from "./ui/modal-header"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 
 export interface AddressFormValues {
   line1: string
@@ -17,6 +18,7 @@ export interface AddressFormValues {
 export interface AccountFormValues {
   accountName: string
   accountLegalName: string
+  salesforceId: string
   parentAccountId: string
   accountTypeId: string
   ownerId: string
@@ -40,6 +42,7 @@ interface AccountRow {
   active: boolean
   accountName: string
   accountLegalName: string
+  salesforceId?: string
   accountType: string
   accountOwner: string
   shippingState: string
@@ -126,6 +129,7 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
     return {
       accountName: "",
       accountLegalName: "",
+      salesforceId: "",
       parentAccountId: "",
       accountTypeId: "",
       ownerId: "",
@@ -150,6 +154,7 @@ const createInitialForm = (account: AccountRow | null): AccountFormValues => {
   return {
     accountName: account.accountName || "",
     accountLegalName: account.accountLegalName || "",
+    salesforceId: account.salesforceId || "",
     parentAccountId: "",
     accountTypeId: "",
     ownerId: "",
@@ -253,6 +258,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
           ...prev,
           accountName: accountData.accountName || "",
           accountLegalName: accountData.accountLegalName || "",
+          salesforceId: accountData.salesforceId || "",
           parentAccountId: accountData.parentAccountId || "",
           accountTypeId: accountData.accountTypeId || "",
           ownerId: accountData.ownerId || "",
@@ -350,6 +356,11 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
       nextErrors.accountTypeId = "Account type is required"
     }
 
+    const salesforceId = normalizeSalesforceIdInput(values.salesforceId)
+    if (salesforceId && !isValidSalesforceId(salesforceId)) {
+      nextErrors.salesforceId = "Salesforce ID must be 15 or 18 alphanumeric characters"
+    }
+
     if (!trimValue(values.shippingAddress.line1)) {
       nextErrors["shippingAddress.line1"] = "Shipping street is required"
     }
@@ -374,6 +385,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
       ...form,
       accountName: trimValue(form.accountName),
       accountLegalName: trimValue(form.accountLegalName),
+      salesforceId: trimValue(form.salesforceId),
       parentAccountId: trimValue(form.parentAccountId),
       accountTypeId: trimValue(form.accountTypeId),
       ownerId: trimValue(form.ownerId),
@@ -419,6 +431,7 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
         body: JSON.stringify({
           accountName: normalizedValues.accountName,
           accountLegalName: normalizedValues.accountLegalName || undefined,
+          salesforceId: normalizedValues.salesforceId || null,
           parentAccountId: normalizedValues.parentAccountId || undefined,
           accountTypeId: normalizedValues.accountTypeId,
           ownerId: normalizedValues.ownerId || undefined,
@@ -502,6 +515,18 @@ export function AccountEditModal({ isOpen, onClose, onSuccess, account }: Accoun
                   className="w-full border-b-2 border-gray-300 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500"
                   placeholder="Enter Legal Name"
                 />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-500">Salesforce ID</label>
+                <input
+                  type="text"
+                  value={form.salesforceId}
+                  onChange={handleFieldChange("salesforceId")}
+                  className={`w-full border-b-2 bg-transparent px-0 py-1 text-xs focus:outline-none focus:border-primary-500 ${errors.salesforceId ? "border-red-500 focus:border-red-500" : "border-gray-300"}`}
+                  placeholder="001XXXXXXXXXXXXXXX"
+                />
+                {errors.salesforceId && <p className="mt-1 text-xs text-red-600">{errors.salesforceId}</p>}
               </div>
 
               <div>

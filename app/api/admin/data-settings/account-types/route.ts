@@ -7,16 +7,6 @@ export const dynamic = "force-dynamic"
 
 const MANAGE_PERMISSIONS = ["admin.data_settings.manage"]
 
-const CANONICAL_ACCOUNT_TYPE_CODES = new Set([
-  "CUSTOMER",
-  "DISTRIBUTOR",
-  "HOUSE_REP",
-  "OTHER",
-  "PROSPECT",
-  "SUBAGENT",
-  "VENDOR"
-])
-
 function normalizeCode(value: string): string {
   return value
     .trim()
@@ -254,17 +244,6 @@ export async function DELETE(request: NextRequest) {
 
         if (!existing) {
           return createErrorResponse("Account type not found", 404)
-        }
-
-        const isCanonical = CANONICAL_ACCOUNT_TYPE_CODES.has(
-          existing.code.toUpperCase()
-        )
-
-        if (existing.isSystem || isCanonical) {
-          return createErrorResponse(
-            "System account types cannot be deleted",
-            400
-          )
         }
 
         const usageCount =

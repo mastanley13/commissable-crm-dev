@@ -20,85 +20,25 @@ import {
 } from "@/lib/deposit-import/template-mapping-v2"
 import { groupRowsByVendor, resolveMultiVendorTemplates } from "@/lib/deposit-import/multi-vendor-template-resolver"
 import { rowHasTotalsLabel } from "@/lib/deposit-import/multi-vendor"
-
-function startOfMonth(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
-}
-
-function parseCommissionPeriod(value: string | null) {
-  if (!value) return null
-  const [yearString, monthString] = value.split("-")
-  const year = Number(yearString)
-  const month = Number(monthString)
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
-  if (month < 1 || month > 12) return null
-  return new Date(Date.UTC(year, month - 1, 1))
-}
-
-function normalizeNumber(value: string | undefined) {
-  if (value === undefined || value === null) {
-    return null
-  }
-  const normalized = value.replace(/[^0-9.\-]/g, "")
-  if (!normalized) return null
-  const numeric = Number(normalized)
-  if (Number.isNaN(numeric)) return null
-  return numeric
-}
-
-function normalizeString(value: string | undefined) {
-  return value && value.trim().length > 0 ? value.trim() : null
-}
-
-function parseDateValue(value: string | undefined, fallback?: Date) {
-  if (!value) return fallback ?? null
-  const trimmed = value.trim()
-  if (!trimmed) return fallback ?? null
-  const numeric = Number(trimmed)
-  if (!Number.isNaN(numeric) && numeric > 20000 && numeric < 60000) {
-    // Excel serial number
-    const excelEpoch = new Date(Date.UTC(1899, 11, 30))
-    return new Date(excelEpoch.getTime() + numeric * 24 * 60 * 60 * 1000)
-  }
-  const parsed = new Date(trimmed)
-  return Number.isNaN(parsed.getTime()) ? fallback ?? null : parsed
-}
-
-function parseBoolean(value: string | undefined) {
-  if (!value) return null
-  const normalized = value.trim().toLowerCase()
-  if (!normalized) return null
-  if (["true", "yes", "1", "y"].includes(normalized)) return true
-  if (["false", "no", "0", "n"].includes(normalized)) return false
-  return null
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
-}
+import {
+  createDepositLineItemsAndRefreshTotals,
+  isDepositImportPlainObject,
+  normalizeDepositImportNumber,
+  normalizeDepositImportString,
+  parseDepositCommissionPeriodInput,
+  parseDepositImportBoolean,
+  parseDepositImportDate,
+} from "@/lib/deposit-import/shared"
+import {
+  buildMappedDepositLineItems,
+  createReconciliationImportedDeposit,
+} from "@/lib/deposit-import/reconciliation-pipeline"
 
 function parseValueByType(dataType: string, value: string | undefined, fallbackDate?: Date) {
-  if (dataType === "number") return normalizeNumber(value)
-  if (dataType === "date") return parseDateValue(value, fallbackDate)
-  if (dataType === "boolean") return parseBoolean(value)
-  return normalizeString(value)
-}
-
-function setMetadataValue(
-  metadata: Record<string, unknown>,
-  path: string[],
-  value: unknown,
-) {
-  if (!path.length) return
-  let cursor: Record<string, unknown> = metadata
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const key = path[index]
-    if (!isPlainObject(cursor[key])) {
-      cursor[key] = {}
-    }
-    cursor = cursor[key] as Record<string, unknown>
-  }
-  cursor[path[path.length - 1]] = value
+  if (dataType === "number") return normalizeDepositImportNumber(value)
+  if (dataType === "date") return parseDepositImportDate(value, fallbackDate)
+  if (dataType === "boolean") return parseDepositImportBoolean(value)
+  return normalizeDepositImportString(value)
 }
 
 function buildColumnIndex(headers: string[], mapping: Record<string, string>) {
@@ -182,7 +122,7 @@ export async function POST(request: NextRequest) {
     let multiVendorSaveUpdatesByTemplateId: Record<string, boolean> = {}
     let multiVendorVendorNameColumn: string | null = null
 
-    if (mappingPayload && isPlainObject(mappingPayload)) {
+    if (mappingPayload && isDepositImportPlainObject(mappingPayload)) {
       const candidate = mappingPayload as Record<string, unknown>
 	      if (candidate["version"] === "multiVendorV1") {
         if (!multiVendor) {
@@ -190,7 +130,7 @@ export async function POST(request: NextRequest) {
         }
 
         const rawMappings = candidate["mappingsByTemplateId"]
-        if (!isPlainObject(rawMappings)) {
+        if (!isDepositImportPlainObject(rawMappings)) {
           return createErrorResponse("Invalid multi-vendor mapping payload", 400)
         }
 
@@ -208,7 +148,7 @@ export async function POST(request: NextRequest) {
         multiVendorMappingsByTemplateId = mappings
 
         const rawSaveUpdates = candidate["saveUpdatesByTemplateId"]
-        if (isPlainObject(rawSaveUpdates)) {
+        if (isDepositImportPlainObject(rawSaveUpdates)) {
           const parsed: Record<string, boolean> = {}
           for (const [templateIdRaw, value] of Object.entries(rawSaveUpdates)) {
             const templateId = templateIdRaw.trim()
@@ -312,7 +252,7 @@ export async function POST(request: NextRequest) {
     if (Number.isNaN(depositDate.getTime())) {
       return createErrorResponse("Invalid payment date provided", 400)
     }
-    const commissionPeriodDate = parseCommissionPeriod(commissionPeriodInput)
+    const commissionPeriodDate = parseDepositCommissionPeriodInput(commissionPeriodInput).value
 
     if (idempotencyKey) {
       const existingJob = await prisma.importJob.findFirst({
@@ -450,15 +390,17 @@ export async function POST(request: NextRequest) {
             if (amountColumnIndexes.size > 0) {
               for (let rowIndex = 0; rowIndex < parsedFile.rows.length; rowIndex += 1) {
                 const row = parsedFile.rows[rowIndex] ?? []
-                const vendorValue = normalizeString(row[vendorNameIndex])
+                const vendorValue = normalizeDepositImportString(row[vendorNameIndex])
                 if (vendorValue) continue
-                if (row.every(value => !normalizeString(value))) continue
+                if (row.every(value => !normalizeDepositImportString(value))) continue
                 if (rowHasTotalsLabel(row, true)) continue
 
                 let hasAmount = false
                 for (const indexValue of amountColumnIndexes) {
                   const raw = row[indexValue]
-                  const numeric = normalizeNumber(typeof raw === "string" ? raw : raw === null || raw === undefined ? undefined : String(raw))
+                  const numeric = normalizeDepositImportNumber(
+                    typeof raw === "string" ? raw : raw === null || raw === undefined ? undefined : String(raw),
+                  )
                   if (numeric !== null) {
                     hasAmount = true
                     break
@@ -618,137 +560,38 @@ export async function POST(request: NextRequest) {
                 .filter(Boolean)
                 .join(" - ")
 
-              const deposit = await tx.deposit.create({
-                data: {
-                  tenantId,
-                  accountId: distributorAccountId,
-                  month: commissionPeriodDate ?? startOfMonth(resolvedDepositDate),
-                  depositName: depositOverrides.depositName || depositName || generatedDepositName || null,
-                  paymentDate: resolvedDepositDate,
-                  distributorAccountId,
-                  vendorAccountId,
-                  reconciliationTemplateId: reconciliationTemplateIdForVendor,
-                  createdByUserId: req.user.id,
-                  createdByContactId: createdByContactId || null,
-                },
+              const deposit = await createReconciliationImportedDeposit(tx, {
+                tenantId,
+                distributorAccountId,
+                vendorAccountId,
+                reconciliationTemplateId: reconciliationTemplateIdForVendor,
+                depositName: depositOverrides.depositName || depositName || generatedDepositName || null,
+                resolvedDepositDate,
+                commissionPeriodDate,
+                createdByUserId: req.user.id,
+                createdByContactId,
               })
 
-              const lineItemsData = group.rows
-                .map((row, index) => {
-                  const metadata: Record<string, unknown> = {}
-                  const usageIndex = templateData.columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
-                  const commissionIndex = templateData.columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]
-                  const usageValueRaw = usageIndex !== undefined ? normalizeNumber(row[usageIndex]) : null
-                  const commissionValue = commissionIndex !== undefined ? normalizeNumber(row[commissionIndex]) : null
-                  if (usageValueRaw === null && commissionValue === null) {
-                    return null
-                  }
-
-                  const paymentDateTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.paymentDate
-                  const paymentDateIndex = paymentDateTargetId ? templateData.columnIndex[paymentDateTargetId] : undefined
-                  const paymentDateValue =
-                    paymentDateIndex !== undefined
-                      ? parseDateValue(row[paymentDateIndex], resolvedDepositDate)
-                      : resolvedDepositDate
-
-                  const isCommissionOnly = usageValueRaw === null && commissionValue !== null
-                  const usageValue = isCommissionOnly ? commissionValue : usageValueRaw
-
-                  const commissionRateIndex = templateData.columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commissionRate]
-                  const commissionRateValueRaw =
-                    commissionRateIndex !== undefined ? normalizeNumber(row[commissionRateIndex]) : null
-                  const commissionRateValue = isCommissionOnly ? 1 : commissionRateValueRaw
-
-                  const lineNumberTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.lineNumber
-                  const lineNumberIndex = lineNumberTargetId ? templateData.columnIndex[lineNumberTargetId] : undefined
-                  const lineNumberValue =
-                    lineNumberIndex !== undefined ? normalizeNumber(row[lineNumberIndex]) ?? index + 1 : index + 1
-
-                  const lineItem: Record<string, unknown> = {
-                    tenantId,
-                    depositId: deposit.id,
-                    lineNumber: lineNumberValue,
-                    paymentDate: paymentDateValue ?? resolvedDepositDate,
-                    usage: usageValue,
-                    usageAllocated: 0,
-                    usageUnallocated: usageValue ?? 0,
-                    commission: commissionValue,
-                    commissionAllocated: 0,
-                    commissionUnallocated: commissionValue ?? 0,
-                    commissionRate: commissionRateValue,
-                    vendorAccountId,
-                  }
-
-                  for (const [targetId] of Object.entries(templateData.mappingConfig.targets ?? {})) {
-                    const target = fieldCatalogIndex.get(targetId)
-                    if (!target || target.persistence !== "depositLineItemColumn" || !target.columnName) continue
-                    if (["usage", "commission", "commissionRate", "lineNumber", "paymentDate"].includes(target.columnName)) {
-                      continue
-                    }
-                    const indexValue = templateData.columnIndex[targetId]
-                    if (indexValue === undefined) continue
-                    const parsedValue = parseValueByType(target.dataType, row[indexValue])
-                    if (parsedValue === null || parsedValue === undefined) continue
-                    lineItem[target.columnName] = parsedValue
-                  }
-
-                  for (const [targetId] of Object.entries(templateData.mappingConfig.targets ?? {})) {
-                    const target = fieldCatalogIndex.get(targetId)
-                    if (!target || target.persistence !== "metadata" || !target.metadataPath) continue
-                    const indexValue = templateData.columnIndex[targetId]
-                    if (indexValue === undefined) continue
-                    const parsedValue = parseValueByType(target.dataType, row[indexValue])
-                    if (parsedValue === null || parsedValue === undefined) continue
-                    setMetadataValue(metadata, target.metadataPath, parsedValue)
-                  }
-
-                  for (const [customKey, indexValue] of Object.entries(templateData.customColumnIndex)) {
-                    const rawValue = row[indexValue]
-                    const parsedValue = normalizeString(rawValue)
-                    if (!parsedValue) continue
-                    const definition = templateData.mappingConfig.customFields?.[customKey]
-                    const customBucket = isPlainObject(metadata["custom"])
-                      ? (metadata["custom"] as Record<string, unknown>)
-                      : {}
-                    customBucket[customKey] = {
-                      label: definition?.label ?? customKey,
-                      section: definition?.section ?? "additional",
-                      value: parsedValue,
-                    }
-                    metadata["custom"] = customBucket
-                  }
-
-                  if (Object.keys(metadata).length > 0) {
-                    lineItem.metadata = metadata
-                  }
-
-                  return lineItem
-                })
-                .filter(Boolean) as any[]
+              const lineItemsData = buildMappedDepositLineItems({
+                tenantId,
+                depositId: deposit.id,
+                vendorAccountId,
+                rows: group.rows,
+                mappingConfig: templateData.mappingConfig,
+                columnIndex: templateData.columnIndex,
+                customColumnIndex: templateData.customColumnIndex,
+                fieldCatalogIndex,
+                resolvedDepositDate,
+              })
 
               if (!lineItemsData.length) {
                 throw new Error(`No usable rows were found for vendor "${group.vendorName}".`)
               }
 
-              await tx.depositLineItem.createMany({
-                data: lineItemsData,
-              })
-
-              const totalUsage = lineItemsData.reduce((acc, line) => acc + (line.usage ?? 0), 0)
-              const totalCommission = lineItemsData.reduce((acc, line) => acc + (line.commission ?? 0), 0)
-
-              await tx.deposit.update({
-                where: { id: deposit.id },
-                data: {
-                  totalItems: lineItemsData.length,
-                  itemsUnreconciled: lineItemsData.length,
-                  totalUsage,
-                  usageAllocated: 0,
-                  usageUnallocated: totalUsage,
-                  totalCommissions: totalCommission,
-                  commissionAllocated: 0,
-                  commissionUnallocated: totalCommission,
-                },
+              await createDepositLineItemsAndRefreshTotals(tx, {
+                tenantId,
+                depositId: deposit.id,
+                lineItemsData,
               })
 
               processedRows += lineItemsData.length
@@ -897,137 +740,38 @@ export async function POST(request: NextRequest) {
               .filter(Boolean)
               .join(" - ")
 
-            const deposit = await tx.deposit.create({
-              data: {
-                tenantId,
-                accountId: distributorAccountId,
-                month: commissionPeriodDate ?? startOfMonth(resolvedDepositDate),
-                depositName: depositOverrides.depositName || depositName || generatedDepositName || null,
-                paymentDate: resolvedDepositDate,
-                distributorAccountId,
-                vendorAccountId,
-                reconciliationTemplateId: reconciliationTemplateIdForVendor,
-                createdByUserId: req.user.id,
-                createdByContactId: createdByContactId || null,
-              },
+            const deposit = await createReconciliationImportedDeposit(tx, {
+              tenantId,
+              distributorAccountId,
+              vendorAccountId,
+              reconciliationTemplateId: reconciliationTemplateIdForVendor,
+              depositName: depositOverrides.depositName || depositName || generatedDepositName || null,
+              resolvedDepositDate,
+              commissionPeriodDate,
+              createdByUserId: req.user.id,
+              createdByContactId,
             })
 
-            const lineItemsData = group.rows
-              .map((row, index) => {
-                const metadata: Record<string, unknown> = {}
-                const usageIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
-                const commissionIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]
-                const usageValueRaw = usageIndex !== undefined ? normalizeNumber(row[usageIndex]) : null
-                const commissionValue = commissionIndex !== undefined ? normalizeNumber(row[commissionIndex]) : null
-                if (usageValueRaw === null && commissionValue === null) {
-                  return null
-                }
-
-                const paymentDateTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.paymentDate
-                const paymentDateIndex = paymentDateTargetId ? columnIndex[paymentDateTargetId] : undefined
-                const paymentDateValue =
-                  paymentDateIndex !== undefined
-                    ? parseDateValue(row[paymentDateIndex], resolvedDepositDate)
-                    : resolvedDepositDate
-
-                const isCommissionOnly = usageValueRaw === null && commissionValue !== null
-                const usageValue = isCommissionOnly ? commissionValue : usageValueRaw
-
-                const commissionRateIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commissionRate]
-                const commissionRateValueRaw =
-                  commissionRateIndex !== undefined ? normalizeNumber(row[commissionRateIndex]) : null
-                const commissionRateValue = isCommissionOnly ? 1 : commissionRateValueRaw
-
-                const lineNumberTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.lineNumber
-                const lineNumberIndex = lineNumberTargetId ? columnIndex[lineNumberTargetId] : undefined
-                const lineNumberValue =
-                  lineNumberIndex !== undefined ? normalizeNumber(row[lineNumberIndex]) ?? index + 1 : index + 1
-
-                const lineItem: Record<string, unknown> = {
-                  tenantId,
-                  depositId: deposit.id,
-                  lineNumber: lineNumberValue,
-                  paymentDate: paymentDateValue ?? resolvedDepositDate,
-                  usage: usageValue,
-                  usageAllocated: 0,
-                  usageUnallocated: usageValue ?? 0,
-                  commission: commissionValue,
-                  commissionAllocated: 0,
-                  commissionUnallocated: commissionValue ?? 0,
-                  commissionRate: commissionRateValue,
-                  vendorAccountId,
-                }
-
-                for (const [targetId] of Object.entries(mappingConfig.targets ?? {})) {
-                  const target = fieldCatalogIndex.get(targetId)
-                  if (!target || target.persistence !== "depositLineItemColumn" || !target.columnName) continue
-                  if (["usage", "commission", "commissionRate", "lineNumber", "paymentDate"].includes(target.columnName)) {
-                    continue
-                  }
-                  const indexValue = columnIndex[targetId]
-                  if (indexValue === undefined) continue
-                  const parsedValue = parseValueByType(target.dataType, row[indexValue])
-                  if (parsedValue === null || parsedValue === undefined) continue
-                  lineItem[target.columnName] = parsedValue
-                }
-
-                for (const [targetId] of Object.entries(mappingConfig.targets ?? {})) {
-                  const target = fieldCatalogIndex.get(targetId)
-                  if (!target || target.persistence !== "metadata" || !target.metadataPath) continue
-                  const indexValue = columnIndex[targetId]
-                  if (indexValue === undefined) continue
-                  const parsedValue = parseValueByType(target.dataType, row[indexValue])
-                  if (parsedValue === null || parsedValue === undefined) continue
-                  setMetadataValue(metadata, target.metadataPath, parsedValue)
-                }
-
-                for (const [customKey, indexValue] of Object.entries(customColumnIndex)) {
-                  const rawValue = row[indexValue]
-                  const parsedValue = normalizeString(rawValue)
-                  if (!parsedValue) continue
-                  const definition = mappingConfig.customFields?.[customKey]
-                  const customBucket = isPlainObject(metadata["custom"])
-                    ? (metadata["custom"] as Record<string, unknown>)
-                    : {}
-                  customBucket[customKey] = {
-                    label: definition?.label ?? customKey,
-                    section: definition?.section ?? "additional",
-                    value: parsedValue,
-                  }
-                  metadata["custom"] = customBucket
-                }
-
-                if (Object.keys(metadata).length > 0) {
-                  lineItem.metadata = metadata
-                }
-
-                return lineItem
-              })
-              .filter(Boolean) as any[]
+            const lineItemsData = buildMappedDepositLineItems({
+              tenantId,
+              depositId: deposit.id,
+              vendorAccountId,
+              rows: group.rows,
+              mappingConfig,
+              columnIndex,
+              customColumnIndex,
+              fieldCatalogIndex,
+              resolvedDepositDate,
+            })
 
             if (!lineItemsData.length) {
               throw new Error(`No usable rows were found for vendor "${group.vendorName}".`)
             }
 
-            await tx.depositLineItem.createMany({
-              data: lineItemsData,
-            })
-
-            const totalUsage = lineItemsData.reduce((acc, line) => acc + (line.usage ?? 0), 0)
-            const totalCommission = lineItemsData.reduce((acc, line) => acc + (line.commission ?? 0), 0)
-
-            await tx.deposit.update({
-              where: { id: deposit.id },
-              data: {
-                totalItems: lineItemsData.length,
-                itemsUnreconciled: lineItemsData.length,
-                totalUsage,
-                usageAllocated: 0,
-                usageUnallocated: totalUsage,
-                totalCommissions: totalCommission,
-                commissionAllocated: 0,
-                commissionUnallocated: totalCommission,
-              },
+            await createDepositLineItemsAndRefreshTotals(tx, {
+              tenantId,
+              depositId: deposit.id,
+              lineItemsData,
             })
 
             depositsCreated.push({
@@ -1090,19 +834,16 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const deposit = await tx.deposit.create({
-          data: {
-            tenantId,
-            accountId: distributorAccountId,
-            month: commissionPeriodDate ?? startOfMonth(resolvedDepositDate),
-            depositName: resolvedDepositName,
-            paymentDate: resolvedDepositDate,
-            distributorAccountId,
-            vendorAccountId,
-            reconciliationTemplateId: selectedTemplate?.id ?? null,
-            createdByUserId: req.user.id,
-            createdByContactId: createdByContactId || null,
-          },
+        const deposit = await createReconciliationImportedDeposit(tx, {
+          tenantId,
+          distributorAccountId,
+          vendorAccountId,
+          reconciliationTemplateId: selectedTemplate?.id ?? null,
+          depositName: resolvedDepositName,
+          resolvedDepositDate,
+          commissionPeriodDate,
+          createdByUserId: req.user.id,
+          createdByContactId,
         })
 
         if (!mappingConfig) {
@@ -1110,130 +851,27 @@ export async function POST(request: NextRequest) {
         }
         const ensuredMappingConfig = mappingConfig
 
-      const shouldSkipSummaryRows = true
-
-      const lineItemsData = parsedFile.rows
-        .map((row, index) => {
-          if (rowHasTotalsLabel(row, shouldSkipSummaryRows)) {
-            return null
-          }
-
-          const metadata: Record<string, unknown> = {}
-          const usageIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.usage]
-          const commissionIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commission]
-          const usageValueRaw = usageIndex !== undefined ? normalizeNumber(row[usageIndex]) : null
-          const commissionValue = commissionIndex !== undefined ? normalizeNumber(row[commissionIndex]) : null
-          if (usageValueRaw === null && commissionValue === null) {
-            return null
-          }
-
-          const paymentDateTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.paymentDate
-          const paymentDateIndex = paymentDateTargetId ? columnIndex[paymentDateTargetId] : undefined
-          const paymentDateValue =
-            paymentDateIndex !== undefined
-              ? parseDateValue(row[paymentDateIndex], resolvedDepositDate)
-              : resolvedDepositDate
-
-          const isCommissionOnly = usageValueRaw === null && commissionValue !== null
-          const usageValue = isCommissionOnly ? commissionValue : usageValueRaw
-
-          // Spec: if a deposit line has commission but no usage, treat it as commission-only:
-          // usage = commission and rate = 100% (fraction 1.0).
-          const commissionRateIndex = columnIndex[DEPOSIT_IMPORT_TARGET_IDS.commissionRate]
-          const commissionRateValueRaw =
-            commissionRateIndex !== undefined ? normalizeNumber(row[commissionRateIndex]) : null
-          const commissionRateValue = isCommissionOnly ? 1 : commissionRateValueRaw
-
-          const lineNumberTargetId = LEGACY_FIELD_ID_TO_TARGET_ID.lineNumber
-          const lineNumberIndex = lineNumberTargetId ? columnIndex[lineNumberTargetId] : undefined
-          const lineNumberValue =
-            lineNumberIndex !== undefined ? normalizeNumber(row[lineNumberIndex]) ?? index + 1 : index + 1
-
-          const lineItem: Record<string, unknown> = {
-            tenantId,
-            depositId: deposit.id,
-            lineNumber: lineNumberValue,
-            paymentDate: paymentDateValue ?? resolvedDepositDate,
-            usage: usageValue,
-            usageAllocated: 0,
-            usageUnallocated: usageValue ?? 0,
-            commission: commissionValue,
-            commissionAllocated: 0,
-            commissionUnallocated: commissionValue ?? 0,
-            commissionRate: commissionRateValue,
-            vendorAccountId,
-          }
-
-          for (const [targetId] of Object.entries(ensuredMappingConfig.targets ?? {})) {
-            const target = fieldCatalogIndex.get(targetId)
-            if (!target || target.persistence !== "depositLineItemColumn" || !target.columnName) continue
-            if (
-              ["usage", "commission", "commissionRate", "lineNumber", "paymentDate"].includes(target.columnName)
-            ) {
-              continue
-            }
-            const indexValue = columnIndex[targetId]
-            if (indexValue === undefined) continue
-            const parsedValue = parseValueByType(target.dataType, row[indexValue])
-            if (parsedValue === null || parsedValue === undefined) continue
-            lineItem[target.columnName] = parsedValue
-          }
-
-          for (const [targetId] of Object.entries(ensuredMappingConfig.targets ?? {})) {
-            const target = fieldCatalogIndex.get(targetId)
-            if (!target || target.persistence !== "metadata" || !target.metadataPath) continue
-            const indexValue = columnIndex[targetId]
-            if (indexValue === undefined) continue
-            const parsedValue = parseValueByType(target.dataType, row[indexValue])
-            if (parsedValue === null || parsedValue === undefined) continue
-            setMetadataValue(metadata, target.metadataPath, parsedValue)
-          }
-
-          for (const [customKey, indexValue] of Object.entries(customColumnIndex)) {
-            const rawValue = row[indexValue]
-            const parsedValue = normalizeString(rawValue)
-            if (!parsedValue) continue
-            const definition = ensuredMappingConfig.customFields?.[customKey]
-            const customBucket = isPlainObject(metadata["custom"]) ? (metadata["custom"] as Record<string, unknown>) : {}
-            customBucket[customKey] = {
-              label: definition?.label ?? customKey,
-              section: definition?.section ?? "additional",
-              value: parsedValue,
-            }
-            metadata["custom"] = customBucket
-          }
-
-          if (Object.keys(metadata).length > 0) {
-            lineItem.metadata = metadata
-          }
-
-          return lineItem
-        })
-        .filter(Boolean) as any[]
+      const lineItemsData = buildMappedDepositLineItems({
+        tenantId,
+        depositId: deposit.id,
+        vendorAccountId,
+        rows: parsedFile.rows,
+        mappingConfig: ensuredMappingConfig,
+        columnIndex,
+        customColumnIndex,
+        fieldCatalogIndex,
+        resolvedDepositDate,
+        shouldSkipSummaryRows: true,
+      })
 
       if (!lineItemsData.length) {
         throw new Error("No usable rows were found in the uploaded file.")
       }
 
-      await tx.depositLineItem.createMany({
-        data: lineItemsData,
-      })
-
-      const totalUsage = lineItemsData.reduce((acc, line) => acc + (line.usage ?? 0), 0)
-      const totalCommission = lineItemsData.reduce((acc, line) => acc + (line.commission ?? 0), 0)
-
-      await tx.deposit.update({
-        where: { id: deposit.id },
-        data: {
-          totalItems: lineItemsData.length,
-          itemsUnreconciled: lineItemsData.length,
-          totalUsage,
-          usageAllocated: 0,
-          usageUnallocated: totalUsage,
-          totalCommissions: totalCommission,
-          commissionAllocated: 0,
-          commissionUnallocated: totalCommission,
-        },
+      await createDepositLineItemsAndRefreshTotals(tx, {
+        tenantId,
+        depositId: deposit.id,
+        lineItemsData,
       })
 
         const importFilters: Prisma.InputJsonValue = {

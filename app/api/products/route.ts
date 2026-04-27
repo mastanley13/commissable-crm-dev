@@ -8,8 +8,10 @@ import { dedupeColumnFilters } from "@/lib/filter-utils"
 import { mapProductToRow } from "./helpers"
 import { logProductAudit } from "@/lib/audit"
 import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
-import { REVENUE_TYPE_DEFINITIONS } from "@/lib/revenue-types"
-import { isEnabledRevenueType } from "@/lib/server-revenue-types"
+import {
+  getAllRevenueTypeOptions,
+  isEnabledRevenueType
+} from "@/lib/server-revenue-types"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
 
 export const runtime = "nodejs"
@@ -131,6 +133,11 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      const revenueTypeOptions =
+        dedupedFilters.some(filter => filter.columnId === "revenueType")
+          ? await getAllRevenueTypeOptions(req.user.tenantId)
+          : []
+
       if (dedupedFilters.length > 0) {
         dedupedFilters.forEach((filter) => {
           const rawValue = (filter.value ?? "").trim()
@@ -178,9 +185,12 @@ export async function GET(request: NextRequest) {
               break
             case "revenueType": {
               const valueLower = rawValue.toLowerCase()
-              const matches = REVENUE_TYPE_DEFINITIONS
-                .map(def => def.code)
-                .filter(code => code.toLowerCase().includes(valueLower))
+              const matches = revenueTypeOptions
+                .filter(option =>
+                  option.value.toLowerCase().includes(valueLower) ||
+                  option.label.toLowerCase().includes(valueLower)
+                )
+                .map(option => option.value)
               if (matches.length > 0) {
                 andConditions.push({ revenueType: { in: matches as any[] } })
               }

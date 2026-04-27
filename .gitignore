@@ -72,3 +72,16 @@ audits/db-backups/
 .artifacts/playwright/reconciliation-suite/history/*/html/**
 .artifacts/playwright/reconciliation-suite/history/*/test-results/
 .artifacts/playwright/reconciliation-suite/history/*/test-results/**
+
+# Local client/source workbooks and one-off imported source bundles
+/*.xlsx
+/*.docx
+/2026-04-17_Import_Test_Data/
+
+# One-off scenario and exported evidence files
+/test-scenario-*
+/wave-*.csv
+/playwright-pass-pending-ui-review-*.csv
+
+# Generated planning/test outputs; commit curated summaries explicitly when needed
+docs/plans/**/generated/

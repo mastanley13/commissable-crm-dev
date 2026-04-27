@@ -677,7 +677,12 @@ interface EditableProductHeaderProps {
      )
    }, [handleUndoAutoFill])
 
-  type AccountOption = { value: string; label: string; accountTypeName?: string }
+  type AccountOption = {
+    value: string
+    label: string
+    accountTypeName?: string
+    accountTypeCode?: string
+  }
   const [vendorOptions, setVendorOptions] = useState<AccountOption[]>([])
   const [distributorOptions, setDistributorOptions] = useState<AccountOption[]>([])
   const [productFamilies, setProductFamilies] = useState<ProductFamilyPicklistOption[]>([])
@@ -698,8 +703,16 @@ interface EditableProductHeaderProps {
         const res = await fetch('/api/contacts/options', { cache: 'no-store' })
         const payload = await res.json().catch(() => null)
         const accounts: AccountOption[] = Array.isArray(payload?.accounts) ? payload.accounts : []
-        const vendors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('vendor'))
-        const distributors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('distributor'))
+        const vendors = accounts.filter(
+          a =>
+            (a.accountTypeCode || "").toUpperCase() === "VENDOR" ||
+            (a.accountTypeName || "").toLowerCase().includes("vendor")
+        )
+        const distributors = accounts.filter(
+          a =>
+            (a.accountTypeCode || "").toUpperCase() === "DISTRIBUTOR" ||
+            (a.accountTypeName || "").toLowerCase().includes("distributor")
+        )
         setVendorOptions(vendors)
         setDistributorOptions(distributors)
       } catch {}
@@ -1111,11 +1124,24 @@ export function ProductDetailsView({
       try {
         const res = await fetch('/api/contacts/options', { cache: 'no-store' })
         const payload = await res.json().catch(() => null)
-        const accounts: Array<{ value: string; label: string; accountTypeName?: string }> = Array.isArray(payload?.accounts)
+        const accounts: Array<{
+          value: string
+          label: string
+          accountTypeName?: string
+          accountTypeCode?: string
+        }> = Array.isArray(payload?.accounts)
           ? payload.accounts
           : []
-        const vendors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('vendor'))
-        const distributors = accounts.filter(a => (a.accountTypeName || '').toLowerCase().includes('distributor'))
+        const vendors = accounts.filter(
+          a =>
+            (a.accountTypeCode || "").toUpperCase() === "VENDOR" ||
+            (a.accountTypeName || "").toLowerCase().includes("vendor")
+        )
+        const distributors = accounts.filter(
+          a =>
+            (a.accountTypeCode || "").toUpperCase() === "DISTRIBUTOR" ||
+            (a.accountTypeName || "").toLowerCase().includes("distributor")
+        )
         ;(window as any).__productAccountOptions = { vendors, distributors }
         ;(window as any).__productAccountOptionsLoaded = true
       } catch {}

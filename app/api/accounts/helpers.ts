@@ -17,6 +17,7 @@ export function mapAccountToListRow(account: any) {
     accountOwner: account.owner?.fullName ?? "",
     accountOwnerId: account.ownerId ?? null,
     accountNumber: account.accountNumber ?? "",
+    salesforceId: account.salesforceId ?? "",
     parentAccount: account.parent?.accountName ?? "",
     parentAccountId: account.parentAccountId ?? null,
     shippingState: account.shippingAddress?.state ?? "",

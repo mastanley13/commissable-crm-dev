@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react"
+import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Search, MessageSquare, ChevronLeft, Bell, Loader2 } from "lucide-react"
+import { Search, CircleHelp, ChevronLeft, Bell, Loader2 } from "lucide-react"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { pushIfModuleListPath } from "@/lib/breadcrumb-history"
 
@@ -276,10 +277,14 @@ export function Topbar() {
         )}
 
         <div className="ml-auto flex items-center space-x-3">
-          <button className="relative rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
-            <MessageSquare className="h-4 w-4" />
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500"></span>
-          </button>
+          <Link
+            href="/resources"
+            className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+            title="Open resource center"
+            aria-label="Open resource center"
+          >
+            <CircleHelp className="h-4 w-4" />
+          </Link>
 
           <button className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600">
             <Bell className="h-4 w-4" />

@@ -689,6 +689,7 @@ export type DepositLineItemRow = {
   paymentDate: string
   accountName: string
   accountLegalName?: string
+  resolvedAccountId?: string | null
   vendorName: string
   otherSource?: "Vendor" | "Distributor" | null
   lineItem: number

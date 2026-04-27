@@ -39,6 +39,8 @@ export interface TwoStageDeleteDialogProps {
   onBulkSoftDelete?: (entities: DeleteDialogEntitySummary[], bypassConstraints?: boolean, reason?: string) => Promise<{ success: boolean, constraints?: DeletionConstraint[], error?: string }>
   // When true, disables the Delete action (used to prevent deleting active records defensively)
   disallowActiveDelete?: boolean
+  // When true, hides the built-in Deactivate/Delete chooser and uses the delete flow directly.
+  hideDeactivateAction?: boolean
   // Matches the larger Revenue Schedules Deactivate/Delete modal sizing
   modalSize?: 'default' | 'revenue-schedules'
   // When true, user must provide a reason before proceeding
@@ -73,6 +75,7 @@ export function TwoStageDeleteDialog({
   entityLabelPlural,
   onBulkSoftDelete,
   disallowActiveDelete = false,
+  hideDeactivateAction = false,
   modalSize = 'default',
   requireReason = false,
   reasonLabel = 'Reason',
@@ -98,7 +101,7 @@ export function TwoStageDeleteDialog({
     : entityName
   const reasonTrimmed = reason.trim()
   const reasonMissing = requireReason && reasonTrimmed.length === 0
-  const canShowActionSelection = Boolean(onDeactivate) && !isDeleted
+  const canShowActionSelection = Boolean(onDeactivate) && !isDeleted && !hideDeactivateAction
   const initialFooterDisabled =
     reasonMissing ||
     (primaryAction === 'delete' && disallowActiveDelete) ||
@@ -125,9 +128,9 @@ export function TwoStageDeleteDialog({
       setError('')
       setBypassConstraints(false)
       setReason('')
-      setPrimaryAction(disallowActiveDelete && onDeactivate ? 'deactivate' : 'delete')
+      setPrimaryAction(disallowActiveDelete && onDeactivate && !hideDeactivateAction ? 'deactivate' : 'delete')
     }
-  }, [disallowActiveDelete, isOpen, onDeactivate])
+  }, [disallowActiveDelete, hideDeactivateAction, isOpen, onDeactivate])
 
   if (!isOpen) return null
 

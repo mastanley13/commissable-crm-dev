@@ -42,6 +42,8 @@ interface ApplyMatchRequestBody {
 }
 
 const EPSILON = 0.005
+const APPLY_MATCH_TRANSACTION_MAX_WAIT_MS = 10_000
+const APPLY_MATCH_TRANSACTION_TIMEOUT_MS = 20_000
 
 function toNumber(value: unknown): number {
   const numeric = Number(value ?? 0)
@@ -160,6 +162,7 @@ export async function POST(
           deposit,
           revenueSchedule: null,
           flexExecution,
+          deferredRevenueScheduleAudit: null,
         }
       }
 
@@ -365,6 +368,12 @@ export async function POST(
 
       let flexExecution = null as any
       let withinToleranceAdjustment = null as any
+      let deferredRevenueScheduleAudit = null as
+        | null
+        | {
+            previousValues: Record<string, unknown>
+            newValues: Record<string, unknown>
+          }
 
       if (flexDecision.action === "auto_adjust") {
         const usageOverage = flexDecision.usageOverage
@@ -391,17 +400,12 @@ export async function POST(
           })
 
           if (createdAdjustment?.id) {
-            await logRevenueScheduleAudit(
-              AuditAction.Update,
-              revenueScheduleId,
-              req.user.id,
-              tenantId,
-              request,
-              {
+            deferredRevenueScheduleAudit = {
+              previousValues: {
                 usageAdjustment: scheduleContext.usageAdjustment ?? null,
                 expectedCommissionAdjustment: scheduleContext.expectedCommissionAdjustment ?? null,
               },
-              {
+              newValues: {
                 action: "WithinToleranceVarianceAutoAdjustment",
                 depositId,
                 depositLineItemId: lineItem.id,
@@ -409,7 +413,7 @@ export async function POST(
                 commissionDelta: commissionOverage,
                 adjustmentId: createdAdjustment.id,
               },
-            )
+            }
           }
 
           revenueSchedule = await recomputeRevenueScheduleFromMatches(tx, revenueScheduleId, tenantId, {
@@ -482,8 +486,26 @@ export async function POST(
         withinToleranceAdjustment,
         rateDiscrepancy,
         commissionAmountReview,
+        deferredRevenueScheduleAudit,
       }
+    }, {
+      maxWait: APPLY_MATCH_TRANSACTION_MAX_WAIT_MS,
+      timeout: APPLY_MATCH_TRANSACTION_TIMEOUT_MS,
     })
+
+    const { deferredRevenueScheduleAudit, ...responseData } = result
+
+    if (deferredRevenueScheduleAudit) {
+      await logRevenueScheduleAudit(
+        AuditAction.Update,
+        revenueScheduleId,
+        req.user.id,
+        tenantId,
+        request,
+        deferredRevenueScheduleAudit.previousValues,
+        deferredRevenueScheduleAudit.newValues,
+      )
+    }
 
     await logMatchingMetric({
       tenantId,
@@ -497,7 +519,7 @@ export async function POST(
       request,
     })
 
-    if (result?.match?.id && result?.revenueSchedule?.schedule) {
+    if (responseData?.match?.id && responseData?.revenueSchedule?.schedule) {
       await logRevenueScheduleAudit(
         AuditAction.Update,
         revenueScheduleId,
@@ -513,16 +535,16 @@ export async function POST(
           action: "ApplyDepositMatch",
           depositId,
           depositLineItemId: lineItem.id,
-          depositLineMatchId: result.match.id,
+          depositLineMatchId: responseData.match.id,
           allocatedUsage: allocationUsage,
           allocatedCommission: allocationCommission,
-          status: result.revenueSchedule.schedule.status,
-          actualUsage: result.revenueSchedule.schedule.actualUsage,
-          actualCommission: result.revenueSchedule.schedule.actualCommission,
-          usageBalance: result.revenueSchedule.usageBalance,
-          commissionDifference: result.revenueSchedule.commissionDifference,
-          matchCount: result.revenueSchedule.matchCount,
-          rateDiscrepancy: result?.rateDiscrepancy ? JSON.parse(JSON.stringify(result.rateDiscrepancy)) : null,
+          status: responseData.revenueSchedule.schedule.status,
+          actualUsage: responseData.revenueSchedule.schedule.actualUsage,
+          actualCommission: responseData.revenueSchedule.schedule.actualCommission,
+          usageBalance: responseData.revenueSchedule.usageBalance,
+          commissionDifference: responseData.revenueSchedule.commissionDifference,
+          matchCount: responseData.revenueSchedule.matchCount,
+          rateDiscrepancy: responseData?.rateDiscrepancy ? JSON.parse(JSON.stringify(responseData.rateDiscrepancy)) : null,
         },
       )
     }
@@ -530,13 +552,13 @@ export async function POST(
     await logAudit({
       userId: req.user.id,
       tenantId,
-      action: result?.match?.id ? AuditAction.Update : AuditAction.Create,
+      action: responseData?.match?.id ? AuditAction.Update : AuditAction.Create,
       entityName: "DepositLineMatch",
-      entityId: result?.match?.id ?? lineItem.id,
+      entityId: responseData?.match?.id ?? lineItem.id,
       ipAddress: getClientIP(request),
       userAgent: getUserAgent(request),
       metadata: {
-        action: result?.match?.id ? "Allocate" : "FlexChargeback",
+        action: responseData?.match?.id ? "Allocate" : "FlexChargeback",
         depositId,
         depositLineItemId: lineItem.id,
         revenueScheduleId,
@@ -544,12 +566,12 @@ export async function POST(
         commissionAmount: allocationCommission,
         confidenceScore,
         source: DepositLineMatchSource.Manual,
-        flexDecision: result?.flexDecision ? JSON.parse(JSON.stringify(result.flexDecision)) : null,
-        flexExecution: result?.flexExecution ? JSON.parse(JSON.stringify(result.flexExecution)) : null,
-        rateDiscrepancy: result?.rateDiscrepancy ? JSON.parse(JSON.stringify(result.rateDiscrepancy)) : null,
+        flexDecision: responseData?.flexDecision ? JSON.parse(JSON.stringify(responseData.flexDecision)) : null,
+        flexExecution: responseData?.flexExecution ? JSON.parse(JSON.stringify(responseData.flexExecution)) : null,
+        rateDiscrepancy: responseData?.rateDiscrepancy ? JSON.parse(JSON.stringify(responseData.rateDiscrepancy)) : null,
       },
     })
 
-    return NextResponse.json({ data: result })
+    return NextResponse.json({ data: responseData })
   })
 }

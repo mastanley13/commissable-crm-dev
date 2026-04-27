@@ -799,52 +799,7 @@ export default function ContactsPage() {
     setBulkActionLoading(true)
 
     try {
-      const deactivationCandidates = targets.filter(contact => contact.active && !contact.isDeleted)
-      const deletionCandidates = targets.filter(contact => !contact.active || contact.isDeleted)
-
-      const deactivatedIds: string[] = []
-      const deactivationFailures: Array<{ contact: ContactRow; message: string }> = []
-
-      if (deactivationCandidates.length > 0) {
-        const outcomes = await Promise.allSettled(
-          deactivationCandidates.map(contact => deactivateContactRequest(contact.id))
-        )
-
-        outcomes.forEach((result, index) => {
-          const contact = deactivationCandidates[index]
-          if (result.status === "fulfilled" && result.value.success) {
-            deactivatedIds.push(contact.id)
-          } else {
-            const errorMessage =
-              result.status === "fulfilled"
-                ? result.value.error || "Failed to deactivate contact"
-                : result.reason instanceof Error
-                  ? result.reason.message
-                  : "Failed to deactivate contact"
-
-            deactivationFailures.push({
-              contact,
-              message: errorMessage
-            })
-          }
-        })
-
-        if (deactivatedIds.length > 0) {
-          const deactivatedSet = new Set(deactivatedIds)
-          setContacts(previous =>
-            previous.map(contact =>
-              deactivatedSet.has(contact.id)
-                ? { ...contact, active: false, isPrimary: false }
-                : contact
-            )
-          )
-
-          showSuccess(
-            `Marked ${deactivatedIds.length} contact${deactivatedIds.length === 1 ? "" : "s"} inactive`,
-            "Inactive contacts can be deleted if needed."
-          )
-        }
-      }
+      const deletionCandidates = targets.filter(contact => !contact.isDeleted)
 
       const deletionSuccessIds: string[] = []
       const constraintResults: Array<{ contact: ContactRow; constraints: DeletionConstraint[] }> = []
@@ -885,19 +840,17 @@ export default function ContactsPage() {
 
       const failureIds = [
         ...constraintResults.map(item => item.contact.id),
-        ...deletionFailures.map(item => item.contact.id),
-        ...deactivationFailures.map(item => item.contact.id)
+        ...deletionFailures.map(item => item.contact.id)
       ]
       const failureIdSet = new Set(failureIds)
 
       setSelectedContacts(prev => prev.filter(id => failureIdSet.has(id)))
       setBulkDeleteTargets(targets.filter(contact => failureIdSet.has(contact.id)))
 
-      if (deactivationFailures.length > 0 || deletionFailures.length > 0) {
-        const failureMessage = [
-          ...deletionFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`),
-          ...deactivationFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
-        ].join("; ")
+      if (deletionFailures.length > 0) {
+        const failureMessage = deletionFailures
+          .map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
+          .join("; ")
         if (failureMessage.length > 0) {
           showError("Bulk delete failed", failureMessage)
         }
@@ -914,16 +867,14 @@ export default function ContactsPage() {
         return { success: false, constraints: aggregatedConstraints }
       }
 
-      if (deletionFailures.length > 0 || deactivationFailures.length > 0) {
-        const failureMessage = [
-          ...deletionFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`),
-          ...deactivationFailures.map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
-        ].join("; ")
-
+      if (deletionFailures.length > 0) {
+        const failureMessage = deletionFailures
+          .map(item => `${item.contact.fullName || "Contact"}: ${item.message}`)
+          .join("; ")
         return { success: false, error: failureMessage }
       }
 
-      return { success: deactivatedIds.length > 0 || deletionSuccessIds.length > 0 }
+      return { success: deletionSuccessIds.length > 0 }
     } catch (error) {
       console.error("Bulk soft delete failed", error)
       const message = error instanceof Error ? error.message : "Unable to delete selected contacts."
@@ -932,7 +883,7 @@ export default function ContactsPage() {
     } finally {
       setBulkActionLoading(false)
     }
-  }, [deactivateContactRequest, setBulkActionLoading, setBulkDeleteTargets, setContacts, setSelectedContacts, showError, showSuccess, softDeleteContactRequest])
+  }, [setBulkActionLoading, setBulkDeleteTargets, setContacts, setSelectedContacts, showError, showSuccess, softDeleteContactRequest])
 
   const handleBulkExportCsv = useCallback(() => {
     if (selectedContacts.length === 0) {
@@ -1611,14 +1562,10 @@ export default function ContactsPage() {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
-        disallowActiveDelete={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.some(contact => !!contact.active || !!contact.isPrimary)
-            : (!!contactToDelete?.active || !!contactToDelete?.isPrimary)
-        }
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+        note="Delete moves contacts to Archive directly. Contacts still cannot be deleted when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
       <ToastContainer />
     </CopyProtectionWrapper>

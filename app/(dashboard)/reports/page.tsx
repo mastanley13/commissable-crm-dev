@@ -449,6 +449,23 @@ export default function ReportsPage() {
     _reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
+      const existingReport = reports.find(report => report.id === reportId)
+      if (existingReport?.active) {
+        const response = await fetch(`/api/reports/${reportId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: false }),
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          return { success: false, error: payload?.error ?? "Failed to archive report" }
+        }
+
+        showSuccess("Report moved to Archive", "The report was marked inactive and can be restored from Archive.")
+        await reloadReports()
+        return { success: true }
+      }
+
       const response = await fetch(`/api/reports/${reportId}`, { method: "DELETE" })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {
@@ -462,7 +479,7 @@ export default function ReportsPage() {
       console.error(err)
       return { success: false, error: err instanceof Error ? err.message : "Unable to delete report" }
     }
-  }, [reloadReports, showSuccess])
+  }, [reloadReports, reports, showSuccess])
 
   const bulkDeleteReportsForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -474,32 +491,61 @@ export default function ReportsPage() {
     }
 
     try {
-      const results = await Promise.allSettled(
-        entities.map(entity =>
+      const activeEntities = entities.filter(entity => reports.find(report => report.id === entity.id)?.active)
+      const inactiveEntities = entities.filter(entity => !reports.find(report => report.id === entity.id)?.active)
+
+      const archiveResults = await Promise.allSettled(
+        activeEntities.map(entity =>
+          fetch(`/api/reports/${entity.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: false }),
+          })
+        )
+      )
+
+      const archiveFailures = archiveResults.filter(
+        result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)
+      )
+
+      const deleteResults = await Promise.allSettled(
+        inactiveEntities.map(entity =>
           fetch(`/api/reports/${entity.id}`, { method: "DELETE" })
         )
       )
 
-      const failures = results.filter(result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok))
-      if (failures.length > 0) {
-        showError("Some deletes failed", "One or more reports could not be deleted.")
-      }
+      const failures = [
+        ...archiveFailures,
+        ...deleteResults.filter(result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok))
+      ]
 
-      const deletedCount = entities.length - failures.length
-      if (deletedCount > 0) {
+      const archivedCount = activeEntities.length - archiveFailures.length
+      if (archivedCount > 0) {
         showSuccess(
-          `Deleted ${deletedCount} report${deletedCount === 1 ? "" : "s"}`,
-          "The selected reports have been removed."
+          `Archived ${archivedCount} report${archivedCount === 1 ? "" : "s"}`,
+          "Active reports were marked inactive and moved to Archive."
         )
       }
 
+      const deletedCount = inactiveEntities.length - (deleteResults.filter(result => result.status === "rejected" || (result.status === "fulfilled" && !result.value.ok)).length)
+      if (deletedCount > 0) {
+        showSuccess(
+          `Deleted ${deletedCount} report${deletedCount === 1 ? "" : "s"}`,
+          "The selected inactive reports have been removed."
+        )
+      }
+
+      if (failures.length > 0) {
+        showError("Some deletes failed", "One or more reports could not be archived or deleted.")
+      }
+
       await reloadReports()
-      return failures.length === entities.length ? { success: false, error: "Failed to delete reports" } : { success: true }
+      return failures.length === entities.length ? { success: false, error: "Failed to archive or delete reports" } : { success: true }
     } catch (err) {
       console.error(err)
       return { success: false, error: err instanceof Error ? err.message : "Unable to delete reports" }
     }
-  }, [reloadReports, showError, showSuccess])
+  }, [reloadReports, reports, showError, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedReportIds.length === 0) {
@@ -803,10 +849,10 @@ export default function ReportsPage() {
           return result.success ? { success: true } : { success: false, error: result.error }
         }}
         userCanPermanentDelete={false}
-        disallowActiveDelete={reportDeleteTargets.some(report => !!report.active)}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Reports must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
+        note="Delete archives active reports directly. Inactive reports can then be permanently deleted from Archive."
       />
     </div>
   )

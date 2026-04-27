@@ -4,6 +4,16 @@ import * as XLSX from "xlsx"
 export interface ParsedSpreadsheet {
   headers: string[]
   rows: string[][]
+  worksheets?: ParsedWorksheet[]
+  selectedWorksheetName?: string
+}
+
+export interface ParsedWorksheet {
+  name: string
+  headers: string[]
+  rows: string[][]
+  isSelectable: boolean
+  error?: string
 }
 
 type PdfTextItem = {
@@ -19,6 +29,44 @@ function normalizeRow(row: unknown[] | undefined): string[] {
     if (typeof value === "string") return value
     return String(value)
   })
+}
+
+function parseWorksheetRows(rows: unknown[][]) {
+  const normalizedRows = rows
+    .map(normalizeRow)
+    .filter(row => row.length > 0 && row.some(cell => cell.trim()))
+
+  if (!normalizedRows.length) {
+    return {
+      headers: [] as string[],
+      rows: [] as string[][],
+      error: "Sheet is empty"
+    }
+  }
+
+  const headers = normalizeRow(normalizedRows[0])
+  if (!headers.length) {
+    return {
+      headers: [] as string[],
+      rows: [] as string[][],
+      error: "Sheet is missing a header row"
+    }
+  }
+
+  const dataRows = normalizedRows.slice(1)
+  if (dataRows.length === 0) {
+    return {
+      headers,
+      rows: [] as string[][],
+      error: "Sheet contains no data rows"
+    }
+  }
+
+  return {
+    headers,
+    rows: dataRows,
+    error: null
+  }
 }
 
 function isCsvFile(fileName: string, mimeType?: string) {
@@ -220,15 +268,42 @@ export async function parseSpreadsheetFile(file: File | Blob, fileName?: string,
   if (isExcelFile(effectiveName)) {
     const buffer = await file.arrayBuffer()
     const workbook = XLSX.read(buffer, { type: "array" })
-    const sheet = workbook.Sheets[workbook.SheetNames[0]]
-    const rows = (XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false }) as unknown[][])
-      .map(normalizeRow)
-      .filter(row => row.length > 0 && row.some(cell => cell.trim()))
-    const headers = normalizeRow(rows.shift())
-    if (!headers.length) {
+
+    if (workbook.SheetNames.length === 0) {
       throw new Error("Spreadsheet is missing a header row")
     }
-    return { headers, rows }
+
+    const worksheets = workbook.SheetNames.map(name => {
+      const sheet = workbook.Sheets[name]
+      const parsed = parseWorksheetRows(
+        XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false }) as unknown[][]
+      )
+
+      return {
+        name,
+        headers: parsed.headers,
+        rows: parsed.rows,
+        isSelectable: !parsed.error,
+        error: parsed.error ?? undefined
+      } satisfies ParsedWorksheet
+    })
+
+    const selectedWorksheet = worksheets.find(worksheet => worksheet.isSelectable)
+    if (!selectedWorksheet) {
+      if (worksheets.length === 1 && worksheets[0]?.error) {
+        throw new Error(worksheets[0].error)
+      }
+      throw new Error(
+        "Spreadsheet workbook does not contain any importable worksheets. Each worksheet needs a header row and at least one data row."
+      )
+    }
+
+    return {
+      headers: selectedWorksheet.headers,
+      rows: selectedWorksheet.rows,
+      worksheets,
+      selectedWorksheetName: selectedWorksheet.name
+    }
   }
 
   if (isPdfFile(effectiveName, effectiveType)) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { withPermissions, createErrorResponse } from '@/lib/api-auth'
-import { ReconciliationStatus, DepositPaymentType } from '@prisma/client'
+import { ReconciliationStatus, DepositPaymentType, HistoricalDepositBucket } from '@prisma/client'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,6 +41,7 @@ function mapDeposit(deposit: any) {
       : '',
     createdAt: deposit.createdAt,
     updatedAt: deposit.updatedAt,
+    historicalBucket: deposit.historicalBucket,
   }
 }
 
@@ -62,8 +63,13 @@ export async function GET(request: NextRequest) {
       const from = searchParams.get('from')
       const to = searchParams.get('to')
       const q = searchParams.get('q')?.trim() ?? ''
+      const includeSettledHistory = (searchParams.get('includeSettledHistory') ?? '').trim().toLowerCase()
+      const showSettledHistory = ['1', 'true', 'yes', 'y'].includes(includeSettledHistory)
 
       const where: any = { tenantId }
+      if (!showSettledHistory) {
+        where.historicalBucket = { not: HistoricalDepositBucket.SettledHistory }
+      }
 
       if (status && status !== 'all') {
         if (!Object.values(ReconciliationStatus).includes(status as ReconciliationStatus)) {

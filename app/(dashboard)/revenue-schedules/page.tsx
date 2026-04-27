@@ -1788,6 +1788,7 @@ export default function RevenueSchedulesPage() {
         isOpen={statusModalOpen}
         schedules={statusModalSchedules}
         defaultAction={statusModalDefaultAction}
+        hideDeactivateAction
         title="Manage Revenue Schedules"
         onClose={closeStatusModal}
         onSuccess={async () => {

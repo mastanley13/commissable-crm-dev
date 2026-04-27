@@ -37,6 +37,7 @@ interface AccountRow {
   accountOwner: string;
   accountOwnerId: string | null;
   accountNumber?: string;
+  salesforceId?: string;
   parentAccount?: string;
   parentAccountId?: string | null;
   shippingState: string;
@@ -63,6 +64,7 @@ type FilterableColumnKey =
   | "accountType"
   | "accountOwner"
   | "accountNumber"
+  | "salesforceId"
   | "parentAccount"
   | "industry"
   | "websiteUrl"
@@ -143,6 +145,16 @@ const accountColumns: Column[] = [
     width: 160,
     minWidth: calculateMinWidth({ label: "Account Number", type: "text", sortable: true }),
     maxWidth: 260,
+    sortable: true,
+    type: "text",
+    hidden: true,
+  },
+  {
+    id: "salesforceId",
+    label: "Salesforce ID",
+    width: 180,
+    minWidth: calculateMinWidth({ label: "Salesforce ID", type: "text", sortable: true }),
+    maxWidth: 280,
     sortable: true,
     type: "text",
     hidden: true,
@@ -353,6 +365,7 @@ const filterOptions: { id: FilterableColumnKey; label: string }[] = [
   { id: "accountType", label: "Account Type" },
   { id: "accountOwner", label: "Account Owner" },
   { id: "accountNumber", label: "Account Number" },
+  { id: "salesforceId", label: "Salesforce ID" },
   { id: "parentAccount", label: "Parent Account" },
   { id: "industry", label: "Industry" },
   { id: "websiteUrl", label: "Website URL" },
@@ -978,6 +991,7 @@ export default function AccountsPage() {
           body: JSON.stringify({
             accountName: values.accountName,
             accountLegalName: values.accountLegalName || undefined,
+            salesforceId: values.salesforceId || undefined,
             parentAccountId: values.parentAccountId || undefined,
             accountTypeId: values.accountTypeId,
             ownerId: values.ownerId || undefined,
@@ -1328,17 +1342,7 @@ export default function AccountsPage() {
           return { success: false, error: message };
         }
 
-        const activeCount = targets.filter((account) => account.active).length;
-        if (activeCount > 0) {
-          const message =
-            activeCount === targets.length
-              ? "Selected accounts must be Inactive before they can be deleted."
-              : "Some selected accounts are Active. Only Inactive accounts can be deleted.";
-          showError("Bulk delete blocked", `${message} Use the Status bulk action to mark them inactive first.`);
-          return { success: false, error: message };
-        }
-
-        const deletionCandidates = targets.filter((account) => !account.active && !account.isDeleted);
+        const deletionCandidates = targets.filter((account) => !account.isDeleted);
 
         const softDeleteSuccessIds: string[] = [];
         const softDeleteFailures: Array<{ account: AccountRow; message: string }> = [];
@@ -1876,14 +1880,10 @@ export default function AccountsPage() {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={userCanPermanentDelete}
-        disallowActiveDelete={
-          bulkDeleteTargets.length > 0
-            ? bulkDeleteTargets.some((account) => Boolean(account.active))
-            : Boolean(accountToDelete?.active)
-        }
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Accounts must be Inactive before they can be deleted. Accounts cannot be deleted when they have active contacts, open/on-hold opportunities, billing (won) opportunities, child accounts, or active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+        note="Delete moves accounts to Archive directly. Accounts still cannot be deleted when they have active contacts, open/on-hold opportunities, billing (won) opportunities, child accounts, or active revenue schedules. If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
       <ToastContainer />
     </CopyProtectionWrapper>

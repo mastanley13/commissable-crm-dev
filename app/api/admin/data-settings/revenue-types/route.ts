@@ -8,26 +8,30 @@ export const dynamic = "force-dynamic"
 
 const MANAGE_PERMISSIONS = ["admin.data_settings.manage"]
 const ENABLED_CODES_SETTING_KEY = "revenueTypes.enabledCodes"
-const CUSTOM_DEFINITIONS_SETTING_KEY = "revenueTypes.customDefinitions"
-
-const CANONICAL_REVENUE_CODES: string[] = REVENUE_TYPE_DEFINITIONS.map(
-  def => def.code
-)
+const DEFINITIONS_SETTING_KEY = "revenueTypes.customDefinitions"
 
 type RevenueCategory = "NRC" | "MRC"
 
-interface CustomRevenueTypeDefinition {
+interface RevenueTypeDefinitionRecord {
   code: string
   label: string
   description: string
   category: RevenueCategory
 }
 
-interface ApiRevenueTypeDefinition extends CustomRevenueTypeDefinition {
+interface ApiRevenueTypeDefinition extends RevenueTypeDefinitionRecord {
   isEnabled: boolean
   isSystem: boolean
   usageCount: number
 }
+
+const DEFAULT_REVENUE_TYPE_DEFINITIONS: RevenueTypeDefinitionRecord[] =
+  REVENUE_TYPE_DEFINITIONS.map(def => ({
+    code: def.code,
+    label: def.label,
+    description: def.description,
+    category: def.category
+  }))
 
 function normalizeCode(value: string): string {
   return value
@@ -37,170 +41,179 @@ function normalizeCode(value: string): string {
     .toUpperCase()
 }
 
-async function getCustomDefinitionsForTenant(
-  tenantId: string
-): Promise<CustomRevenueTypeDefinition[]> {
-  const setting = await prisma.systemSetting.findUnique({
-    where: {
-      tenantId_key: {
-        tenantId,
-        key: CUSTOM_DEFINITIONS_SETTING_KEY
-      }
-    }
-  })
-
-  if (!setting?.value) {
-    return []
-  }
-
-  const raw = setting.value as any
-  let parsed: unknown
-
-  if (Array.isArray(raw)) {
-    parsed = raw
-  } else if (typeof raw === "string") {
+function parseSettingArray(value: unknown): unknown[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === "string") {
     try {
-      parsed = JSON.parse(raw)
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
     }
-  } else {
-    return []
   }
-
-  const result: CustomRevenueTypeDefinition[] = []
-  const seenCodes = new Set<string>()
-
-  if (Array.isArray(parsed)) {
-    for (const item of parsed) {
-      if (!item || typeof item !== "object") continue
-
-      const value = item as any
-      const code =
-        typeof value.code === "string" ? value.code.trim() : ""
-      const label =
-        typeof value.label === "string" ? value.label.trim() : ""
-      const description =
-        typeof value.description === "string"
-          ? value.description.trim()
-          : ""
-      const category =
-        value.category === "NRC" || value.category === "MRC"
-          ? value.category
-          : null
-
-      if (!code || !label || !category) continue
-      if (seenCodes.has(code)) continue
-
-      seenCodes.add(code)
-      result.push({
-        code,
-        label,
-        description,
-        category
-      })
-    }
-  }
-
-  return result
+  return []
 }
 
-async function getEnabledCodesForTenant(
+function normalizeDefinitions(value: unknown): RevenueTypeDefinitionRecord[] {
+  const parsed = parseSettingArray(value)
+  const results: RevenueTypeDefinitionRecord[] = []
+  const seenCodes = new Set<string>()
+
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue
+    const candidate = item as Record<string, unknown>
+    const code = typeof candidate.code === "string" ? candidate.code.trim() : ""
+    const label = typeof candidate.label === "string" ? candidate.label.trim() : ""
+    const description =
+      typeof candidate.description === "string" ? candidate.description.trim() : ""
+    const category =
+      candidate.category === "NRC" || candidate.category === "MRC"
+        ? candidate.category
+        : null
+
+    if (!code || !label || !category || seenCodes.has(code)) {
+      continue
+    }
+
+    seenCodes.add(code)
+    results.push({
+      code,
+      label,
+      description,
+      category
+    })
+  }
+
+  return results
+}
+
+function normalizeEnabledCodes(
+  value: unknown,
+  validCodes: Set<string>
+): Set<string> {
+  const parsed = parseSettingArray(value)
+  const results = new Set<string>()
+
+  for (const item of parsed) {
+    if (typeof item !== "string") continue
+    const code = item.trim()
+    if (!code || !validCodes.has(code)) continue
+    results.add(code)
+  }
+
+  return results
+}
+
+async function persistDefinitionsAndEnabledCodes(
   tenantId: string,
-  fallbackCodes: string[]
-): Promise<Set<string>> {
-  const setting = await prisma.systemSetting.findUnique({
-    where: {
-      tenantId_key: {
+  definitions: RevenueTypeDefinitionRecord[],
+  enabledCodes: Iterable<string>
+) {
+  const codes = new Set(definitions.map(def => def.code))
+  const normalizedEnabled = Array.from(new Set(enabledCodes)).filter(code =>
+    codes.has(code)
+  )
+
+  await Promise.all([
+    prisma.systemSetting.upsert({
+      where: {
+        tenantId_key: {
+          tenantId,
+          key: DEFINITIONS_SETTING_KEY
+        }
+      },
+      create: {
         tenantId,
-        key: ENABLED_CODES_SETTING_KEY
+        key: DEFINITIONS_SETTING_KEY,
+        value: JSON.stringify(definitions),
+        description: "Tenant-managed revenue type definitions."
+      },
+      update: {
+        value: JSON.stringify(definitions)
       }
-    }
-  })
-
-  if (!setting?.value) {
-    return new Set(fallbackCodes)
-  }
-
-  const raw = setting.value as any
-  let parsed: unknown
-
-  if (Array.isArray(raw)) {
-    parsed = raw
-  } else if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return new Set(fallbackCodes)
-    }
-  } else {
-    return new Set(fallbackCodes)
-  }
-
-  const result = new Set<string>()
-
-  if (Array.isArray(parsed)) {
-    for (const value of parsed) {
-      if (typeof value === "string" && value.trim().length > 0) {
-        result.add(value.trim())
+    }),
+    prisma.systemSetting.upsert({
+      where: {
+        tenantId_key: {
+          tenantId,
+          key: ENABLED_CODES_SETTING_KEY
+        }
+      },
+      create: {
+        tenantId,
+        key: ENABLED_CODES_SETTING_KEY,
+        value: JSON.stringify(normalizedEnabled),
+        description: "List of revenue type codes that are enabled for selection."
+      },
+      update: {
+        value: JSON.stringify(normalizedEnabled)
       }
-    }
+    })
+  ])
+}
+
+async function getRevenueTypeSettings(
+  tenantId: string
+): Promise<{
+  definitions: RevenueTypeDefinitionRecord[]
+  enabledCodes: Set<string>
+}> {
+  const [definitionsSetting, enabledSetting] = await Promise.all([
+    prisma.systemSetting.findUnique({
+      where: {
+        tenantId_key: {
+          tenantId,
+          key: DEFINITIONS_SETTING_KEY
+        }
+      }
+    }),
+    prisma.systemSetting.findUnique({
+      where: {
+        tenantId_key: {
+          tenantId,
+          key: ENABLED_CODES_SETTING_KEY
+        }
+      }
+    })
+  ])
+
+  let definitions = normalizeDefinitions(definitionsSetting?.value)
+  const shouldBootstrapDefinitions = definitions.length === 0 && !definitionsSetting
+
+  if (shouldBootstrapDefinitions) {
+    definitions = DEFAULT_REVENUE_TYPE_DEFINITIONS
   }
 
-  return result.size > 0 ? result : new Set(fallbackCodes)
+  const validCodes = new Set(definitions.map(def => def.code))
+  let enabledCodes = normalizeEnabledCodes(enabledSetting?.value, validCodes)
+
+  const shouldBootstrapEnabled = !enabledSetting && definitions.length > 0
+  if (shouldBootstrapEnabled) {
+    enabledCodes = new Set(definitions.map(def => def.code))
+  }
+
+  if (shouldBootstrapDefinitions || shouldBootstrapEnabled) {
+    await persistDefinitionsAndEnabledCodes(tenantId, definitions, enabledCodes)
+  }
+
+  return { definitions, enabledCodes }
 }
 
 async function buildRevenueTypeResponse(
   tenantId: string
 ): Promise<ApiRevenueTypeDefinition[]> {
-  const customDefinitions = await getCustomDefinitionsForTenant(tenantId)
+  const { definitions, enabledCodes } = await getRevenueTypeSettings(tenantId)
 
-  const allCodes: string[] = [
-    ...CANONICAL_REVENUE_CODES,
-    ...customDefinitions.map(def => def.code)
-  ]
-
-  const enabledCodes = await getEnabledCodesForTenant(tenantId, allCodes)
-
-  const customByCode = new Map(
-    customDefinitions.map(def => [def.code, def] as const)
-  )
-
-  const canonicalData: ApiRevenueTypeDefinition[] =
-    REVENUE_TYPE_DEFINITIONS.map(def => {
-      const override = customByCode.get(def.code)
-      return {
-        code: def.code,
-        label: override?.label ?? def.label,
-        description: override?.description ?? def.description,
-        category: def.category,
-        isEnabled: enabledCodes.has(def.code),
-        isSystem: true,
-        usageCount: 0
-      }
-    })
-
-  const customData: ApiRevenueTypeDefinition[] = customDefinitions
-    .filter(def => !CANONICAL_REVENUE_CODES.includes(def.code))
-    .map(def => ({
-      code: def.code,
-      label: def.label,
-      description: def.description,
-      category: def.category,
-      isEnabled: enabledCodes.has(def.code),
-      isSystem: false,
-      usageCount: 0
-    }))
-
-  const response = [...canonicalData, ...customData]
-
-  if (response.length === 0) return response
+  if (definitions.length === 0) {
+    return []
+  }
 
   const usageRows = await prisma.product.groupBy({
     by: ["revenueType"],
     where: {
       tenantId,
-      revenueType: { in: response.map(item => item.code) }
+      revenueType: { in: definitions.map(def => def.code) }
     },
     _count: { _all: true }
   })
@@ -209,447 +222,247 @@ async function buildRevenueTypeResponse(
     usageRows.map(row => [row.revenueType, row._count._all] as const)
   )
 
-  return response.map(item => ({
-    ...item,
-    usageCount: usageByCode.get(item.code) ?? 0
+  return definitions.map(def => ({
+    ...def,
+    isEnabled: enabledCodes.has(def.code),
+    isSystem: false,
+    usageCount: usageByCode.get(def.code) ?? 0
   }))
 }
 
 export async function GET(request: NextRequest) {
-  return withPermissions(
-    request,
-    MANAGE_PERMISSIONS,
-    async (req) => {
-      const tenantId = req.user.tenantId
+  return withPermissions(request, MANAGE_PERMISSIONS, async req => {
+    const tenantId = req.user.tenantId
 
-      try {
-        const data = await buildRevenueTypeResponse(tenantId)
-        return NextResponse.json({ data })
-      } catch (error) {
-        console.error("Failed to load revenue types", error)
-        return createErrorResponse("Failed to load revenue types", 500)
-      }
+    try {
+      const data = await buildRevenueTypeResponse(tenantId)
+      return NextResponse.json({ data })
+    } catch (error) {
+      console.error("Failed to load revenue types", error)
+      return createErrorResponse("Failed to load revenue types", 500)
     }
-  )
+  })
 }
 
 export async function POST(request: NextRequest) {
-  return withPermissions(
-    request,
-    MANAGE_PERMISSIONS,
-    async (req) => {
-      const tenantId = req.user.tenantId
-      const body = await request.json()
+  return withPermissions(request, MANAGE_PERMISSIONS, async req => {
+    const tenantId = req.user.tenantId
+    const body = await request.json()
 
-      const label =
-        typeof body.label === "string" ? body.label.trim() : ""
-      const rawCategory = body.category
-      const description =
-        typeof body.description === "string" && body.description.trim().length > 0
-          ? body.description.trim()
-          : ""
+    const label = typeof body.label === "string" ? body.label.trim() : ""
+    const description =
+      typeof body.description === "string" ? body.description.trim() : ""
+    const category: RevenueCategory | null =
+      body.category === "NRC" || body.category === "MRC" ? body.category : null
 
-      const category: RevenueCategory | null =
-        rawCategory === "NRC" || rawCategory === "MRC"
-          ? rawCategory
-          : null
-
-      if (!label) {
-        return createErrorResponse("Label is required", 400)
-      }
-
-      if (!category) {
-        return createErrorResponse("Category must be NRC or MRC", 400)
-      }
-
-      try {
-        const existingCustom = await getCustomDefinitionsForTenant(tenantId)
-
-        const existingCodes = new Set<string>([
-          ...CANONICAL_REVENUE_CODES,
-          ...existingCustom.map(def => def.code)
-        ])
-
-        const baseCode = normalizeCode(label)
-        const prefix = `${category}_`
-        let candidate = `${prefix}${baseCode}`
-        if (!baseCode) {
-          candidate = `${category}_CUSTOM`
-        }
-
-        let code = candidate
-        let suffix = 2
-        while (existingCodes.has(code)) {
-          code = `${candidate}_${suffix}`
-          suffix += 1
-        }
-
-        const updatedCustom: CustomRevenueTypeDefinition[] = [
-          ...existingCustom,
-          {
-            code,
-            label,
-            description,
-            category
-          }
-        ]
-
-        const allCodes = [
-          ...CANONICAL_REVENUE_CODES,
-          ...updatedCustom.map(def => def.code)
-        ]
-
-        const enabledCodes = await getEnabledCodesForTenant(
-          tenantId,
-          allCodes
-        )
-        enabledCodes.add(code)
-
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: CUSTOM_DEFINITIONS_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: CUSTOM_DEFINITIONS_SETTING_KEY,
-            value: JSON.stringify(updatedCustom),
-            description:
-              "Tenant-specific custom revenue type definitions."
-          },
-          update: {
-            value: JSON.stringify(updatedCustom)
-          }
-        })
-
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: ENABLED_CODES_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: ENABLED_CODES_SETTING_KEY,
-            value: JSON.stringify(Array.from(enabledCodes)),
-            description:
-              "List of revenue type codes that are enabled for selection."
-          },
-          update: {
-            value: JSON.stringify(Array.from(enabledCodes))
-          }
-        })
-
-        const created: ApiRevenueTypeDefinition = {
-          code,
-          label,
-          description,
-          category,
-          isEnabled: true,
-          isSystem: false,
-          usageCount: 0
-        }
-
-        return NextResponse.json({ data: created }, { status: 201 })
-      } catch (error) {
-        console.error("Failed to create revenue type", error)
-        return createErrorResponse("Failed to create revenue type", 500)
-      }
+    if (!label) {
+      return createErrorResponse("Label is required", 400)
     }
-  )
+
+    if (!category) {
+      return createErrorResponse("Category must be NRC or MRC", 400)
+    }
+
+    try {
+      const { definitions, enabledCodes } = await getRevenueTypeSettings(tenantId)
+      const existingCodes = new Set(definitions.map(def => def.code))
+
+      const baseCode = normalizeCode(label)
+      const prefix = `${category}_`
+      const baseCandidate = baseCode ? `${prefix}${baseCode}` : `${category}_CUSTOM`
+
+      let code = baseCandidate
+      let suffix = 2
+      while (existingCodes.has(code)) {
+        code = `${baseCandidate}_${suffix}`
+        suffix += 1
+      }
+
+      const created: RevenueTypeDefinitionRecord = {
+        code,
+        label,
+        description,
+        category
+      }
+
+      const nextDefinitions = [...definitions, created]
+      const nextEnabledCodes = new Set(enabledCodes)
+      nextEnabledCodes.add(code)
+
+      await persistDefinitionsAndEnabledCodes(
+        tenantId,
+        nextDefinitions,
+        nextEnabledCodes
+      )
+
+      return NextResponse.json(
+        {
+          data: {
+            ...created,
+            isEnabled: true,
+            isSystem: false,
+            usageCount: 0
+          }
+        },
+        { status: 201 }
+      )
+    } catch (error) {
+      console.error("Failed to create revenue type", error)
+      return createErrorResponse("Failed to create revenue type", 500)
+    }
+  })
 }
 
 export async function PATCH(request: NextRequest) {
-  return withPermissions(
-    request,
-    MANAGE_PERMISSIONS,
-    async (req) => {
-      const tenantId = req.user.tenantId
-      const body = await request.json()
+  return withPermissions(request, MANAGE_PERMISSIONS, async req => {
+    const tenantId = req.user.tenantId
+    const body = await request.json()
+    const enabledCodesInput: unknown = body.enabledCodes
 
-      const enabledCodesInput: unknown = body.enabledCodes
+    if (!Array.isArray(enabledCodesInput)) {
+      return createErrorResponse("enabledCodes must be an array", 400)
+    }
 
-      if (!Array.isArray(enabledCodesInput)) {
-        return createErrorResponse("enabledCodes must be an array", 400)
-      }
-
-      const codesFromInput = new Set<string>()
+    try {
+      const { definitions } = await getRevenueTypeSettings(tenantId)
+      const validCodes = new Set(definitions.map(def => def.code))
+      const nextEnabledCodes = new Set<string>()
 
       for (const value of enabledCodesInput) {
-        if (typeof value === "string" && value.trim().length > 0) {
-          codesFromInput.add(value.trim())
-        }
+        if (typeof value !== "string") continue
+        const code = value.trim()
+        if (!code || !validCodes.has(code)) continue
+        nextEnabledCodes.add(code)
       }
 
-      try {
-        const customDefinitions = await getCustomDefinitionsForTenant(tenantId)
+      await persistDefinitionsAndEnabledCodes(
+        tenantId,
+        definitions,
+        nextEnabledCodes
+      )
 
-        const allCodes: string[] = [
-          ...CANONICAL_REVENUE_CODES,
-          ...customDefinitions.map(def => def.code)
-        ]
-
-        const codesToPersist: string[] =
-          codesFromInput.size > 0 ? Array.from(codesFromInput) : allCodes
-
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: ENABLED_CODES_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: ENABLED_CODES_SETTING_KEY,
-            value: JSON.stringify(codesToPersist),
-            description:
-              "List of revenue type codes that are enabled for selection."
-          },
-          update: {
-            value: JSON.stringify(codesToPersist)
-          }
-        })
-
-        const data = await buildRevenueTypeResponse(tenantId)
-
-        return NextResponse.json({ data })
-      } catch (error) {
-        console.error("Failed to update revenue types setting", error)
-        return createErrorResponse("Failed to update revenue types", 500)
-      }
+      const data = await buildRevenueTypeResponse(tenantId)
+      return NextResponse.json({ data })
+    } catch (error) {
+      console.error("Failed to update revenue types setting", error)
+      return createErrorResponse("Failed to update revenue types", 500)
     }
-  )
+  })
 }
 
 export async function PUT(request: NextRequest) {
-  return withPermissions(
-    request,
-    MANAGE_PERMISSIONS,
-    async (req) => {
-      const tenantId = req.user.tenantId
-      const body = await request.json()
+  return withPermissions(request, MANAGE_PERMISSIONS, async req => {
+    const tenantId = req.user.tenantId
+    const body = await request.json()
 
-      const code =
-        typeof body.code === "string" ? body.code.trim() : ""
+    const code = typeof body.code === "string" ? body.code.trim() : ""
+    const label = typeof body.label === "string" ? body.label.trim() : ""
+    const description =
+      typeof body.description === "string" ? body.description.trim() : ""
 
-      if (!code) {
-        return createErrorResponse("Revenue type code is required", 400)
+    if (!code) {
+      return createErrorResponse("Revenue type code is required", 400)
+    }
+
+    if (!label) {
+      return createErrorResponse("Label is required", 400)
+    }
+
+    try {
+      const { definitions, enabledCodes } = await getRevenueTypeSettings(tenantId)
+      const index = definitions.findIndex(def => def.code === code)
+
+      if (index === -1) {
+        return createErrorResponse("Revenue type not found", 404)
       }
 
-      const label =
-        typeof body.label === "string" ? body.label.trim() : ""
-      const description =
-        typeof body.description === "string"
-          ? body.description.trim()
-          : ""
-
-      if (!label) {
-        return createErrorResponse("Label is required", 400)
+      const nextDefinitions = [...definitions]
+      nextDefinitions[index] = {
+        ...nextDefinitions[index],
+        label,
+        description
       }
 
+      await persistDefinitionsAndEnabledCodes(
+        tenantId,
+        nextDefinitions,
+        enabledCodes
+      )
 
-      try {
-        const canonical = REVENUE_TYPE_DEFINITIONS.find(
-          def => def.code === code
-        )
-        const existingCustom = await getCustomDefinitionsForTenant(tenantId)
-
-        let updatedCustom: CustomRevenueTypeDefinition[]
-
-        if (canonical) {
-          // Treat as an override for a canonical revenue type
-          const withoutThis = existingCustom.filter(def => def.code !== code)
-          updatedCustom = [
-            ...withoutThis,
-            {
-              code,
-              label,
-              description,
-              category: canonical.category
-            }
-          ]
-        } else {
-          const index = existingCustom.findIndex(def => def.code === code)
-          if (index === -1) {
-            return createErrorResponse("Custom revenue type not found", 404)
-          }
-
-          updatedCustom = [...existingCustom]
-          updatedCustom[index] = {
-            ...updatedCustom[index],
-            label,
-            description
-          }
-        }
-
-        const allCodes: string[] = [
-          ...CANONICAL_REVENUE_CODES,
-          ...updatedCustom.map(def => def.code)
-        ]
-
-        const enabledCodes = await getEnabledCodesForTenant(
+      const usageCount = await prisma.product.count({
+        where: {
           tenantId,
-          allCodes
-        )
+          revenueType: code
+        }
+      })
 
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: CUSTOM_DEFINITIONS_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: CUSTOM_DEFINITIONS_SETTING_KEY,
-            value: JSON.stringify(updatedCustom),
-            description:
-              "Tenant-specific custom revenue type definitions."
-          },
-          update: {
-            value: JSON.stringify(updatedCustom)
-          }
-        })
-
-        const updatedDef =
-          updatedCustom.find(def => def.code === code) ?? canonical!
-
-        const usageCount = await prisma.product.count({
-          where: {
-            tenantId,
-            revenueType: updatedDef.code
-          }
-        })
-
-        const response: ApiRevenueTypeDefinition = {
-          code: updatedDef.code,
-          label: updatedDef.label,
-          description: updatedDef.description,
-          category: updatedDef.category,
-          isEnabled: enabledCodes.has(updatedDef.code),
-          isSystem: canonical ? true : false,
+      return NextResponse.json({
+        data: {
+          ...nextDefinitions[index],
+          isEnabled: enabledCodes.has(code),
+          isSystem: false,
           usageCount
         }
-
-        return NextResponse.json({ data: response })
-      } catch (error) {
-        console.error("Failed to update revenue type", error)
-        return createErrorResponse("Failed to update revenue type", 500)
-      }
+      })
+    } catch (error) {
+      console.error("Failed to update revenue type", error)
+      return createErrorResponse("Failed to update revenue type", 500)
     }
-  )
+  })
 }
 
 export async function DELETE(request: NextRequest) {
-  return withPermissions(
-    request,
-    MANAGE_PERMISSIONS,
-    async (req) => {
-      const tenantId = req.user.tenantId
+  return withPermissions(request, MANAGE_PERMISSIONS, async req => {
+    const tenantId = req.user.tenantId
 
-      let body: any = null
-      try {
-        body = await request.json()
-      } catch {
-        // Ignore parse errors and handle as missing code below
-      }
+    let body: Record<string, unknown> | null = null
+    try {
+      body = await request.json()
+    } catch {
+      body = null
+    }
 
-      const code =
-        body && typeof body.code === "string" ? body.code.trim() : ""
+    const code = body && typeof body.code === "string" ? body.code.trim() : ""
 
-      if (!code) {
-        return createErrorResponse("Revenue type code is required", 400)
-      }
+    if (!code) {
+      return createErrorResponse("Revenue type code is required", 400)
+    }
 
-      if (CANONICAL_REVENUE_CODES.includes(code)) {
+    try {
+      const usageCount = await prisma.product.count({
+        where: {
+          tenantId,
+          revenueType: code
+        }
+      })
+
+      if (usageCount > 0) {
         return createErrorResponse(
-          "Canonical revenue types cannot be deleted. Disable them instead.",
+          "Cannot delete a revenue type that is currently used by products.",
           400
         )
       }
 
-      try {
-        const usageCount = await prisma.product.count({
-          where: {
-            tenantId,
-            revenueType: code
-          }
-        })
+      const { definitions, enabledCodes } = await getRevenueTypeSettings(tenantId)
+      const nextDefinitions = definitions.filter(def => def.code !== code)
 
-        if (usageCount > 0) {
-          return createErrorResponse(
-            "Cannot delete a revenue type that is currently used by products.",
-            400
-          )
-        }
-
-        const existingCustom = await getCustomDefinitionsForTenant(tenantId)
-
-        const index = existingCustom.findIndex(def => def.code === code)
-        if (index === -1) {
-          return createErrorResponse("Custom revenue type not found", 404)
-        }
-
-        const updatedCustom = existingCustom.filter(def => def.code !== code)
-
-        const allCodes: string[] = [
-          ...CANONICAL_REVENUE_CODES,
-          ...updatedCustom.map(def => def.code)
-        ]
-
-        const enabledCodes = await getEnabledCodesForTenant(
-          tenantId,
-          allCodes
-        )
-        enabledCodes.delete(code)
-
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: CUSTOM_DEFINITIONS_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: CUSTOM_DEFINITIONS_SETTING_KEY,
-            value: JSON.stringify(updatedCustom),
-            description:
-              "Tenant-specific custom revenue type definitions."
-          },
-          update: {
-            value: JSON.stringify(updatedCustom)
-          }
-        })
-
-        await prisma.systemSetting.upsert({
-          where: {
-            tenantId_key: {
-              tenantId,
-              key: ENABLED_CODES_SETTING_KEY
-            }
-          },
-          create: {
-            tenantId,
-            key: ENABLED_CODES_SETTING_KEY,
-            value: JSON.stringify(Array.from(enabledCodes)),
-            description:
-              "List of revenue type codes that are enabled for selection."
-          },
-          update: {
-            value: JSON.stringify(Array.from(enabledCodes))
-          }
-        })
-
-        return NextResponse.json({ success: true })
-      } catch (error) {
-        console.error("Failed to delete revenue type", error)
-        return createErrorResponse("Failed to delete revenue type", 500)
+      if (nextDefinitions.length === definitions.length) {
+        return createErrorResponse("Revenue type not found", 404)
       }
+
+      const nextEnabledCodes = new Set(enabledCodes)
+      nextEnabledCodes.delete(code)
+
+      await persistDefinitionsAndEnabledCodes(
+        tenantId,
+        nextDefinitions,
+        nextEnabledCodes
+      )
+
+      return NextResponse.json({ success: true })
+    } catch (error) {
+      console.error("Failed to delete revenue type", error)
+      return createErrorResponse("Failed to delete revenue type", 500)
     }
-  )
+  })
 }

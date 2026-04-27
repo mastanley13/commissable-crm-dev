@@ -3,6 +3,7 @@ import { DepositLineItemStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
+import { resolveUniqueDepositLineAccountsByName, type ResolvedDepositLineAccount } from "@/lib/reconciliation/deposit-line-account-resolution"
 
 const LINE_STATUS_LABEL: Record<DepositLineItemStatus, string> = {
   [DepositLineItemStatus.Unmatched]: "Unmatched",
@@ -40,7 +41,12 @@ function mapDepositMetadata(deposit: any) {
   }
 }
 
-function mapDepositLineItem(deposit: any, line: any, index: number) {
+function mapDepositLineItem(
+  deposit: any,
+  line: any,
+  index: number,
+  resolvedAccount: ResolvedDepositLineAccount | null,
+) {
   const accountIdOther = resolveOtherValue(line.accountIdVendor, null)
   const customerIdOther = resolveOtherValue(line.customerIdVendor, null)
   const orderIdOther = resolveOtherValue(line.orderIdVendor, null)
@@ -52,11 +58,13 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
 
   const accountName =
     line.account?.accountName ??
+    resolvedAccount?.accountName ??
     line.accountNameRaw ??
     line.account?.accountLegalName ??
     "Unknown Account"
   const accountLegalName =
     line.account?.accountLegalName ??
+    resolvedAccount?.accountLegalName ??
     line.accountNameRaw ??
     line.account?.accountName ??
     "Unknown Account"
@@ -83,6 +91,7 @@ function mapDepositLineItem(deposit: any, line: any, index: number) {
     commissionUnallocated: Number(line.commissionUnallocated ?? 0),
     commissionRate: Number(line.commissionRate ?? 0),
     accountId: accountIdOther.value ?? "",
+    resolvedAccountId: line.accountId ?? resolvedAccount?.id ?? null,
     customerIdVendor: line.customerIdVendor ?? "",
     orderIdVendor: line.orderIdVendor ?? "",
     accountIdOther: accountIdOther.value ?? "",
@@ -131,7 +140,23 @@ export async function GET(request: NextRequest, { params }: { params: { depositI
       }
 
       const metadata = mapDepositMetadata(deposit)
-      const lineItems = (deposit.lineItems ?? []).map((line: any, index: number) => mapDepositLineItem(deposit, line, index))
+      const resolvedAccountsByName = await resolveUniqueDepositLineAccountsByName(prisma, {
+        tenantId,
+        rawNames: (deposit.lineItems ?? [])
+          .filter((line: any) => !line.accountId)
+          .map((line: any) => line.accountNameRaw),
+        excludeAccountIds: [deposit.distributorAccountId, deposit.vendorAccountId],
+      })
+      const lineItems = (deposit.lineItems ?? []).map((line: any, index: number) =>
+        mapDepositLineItem(
+          deposit,
+          line,
+          index,
+          line.accountId
+            ? null
+            : resolvedAccountsByName.get(String(line.accountNameRaw ?? "").trim().toLowerCase().replace(/\s+/g, " ")) ?? null,
+        ),
+      )
 
       return NextResponse.json({
         data: {

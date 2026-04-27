@@ -87,6 +87,86 @@ export function formatSignedPercentDiff(value: number | null, options?: { nullDi
   return value > 0 ? `+${formatted}` : `-${formatted}`
 }
 
+export interface RevenueScheduleSplitDisplayInputs {
+  houseSplitPercent?: DisplayValue
+  houseRepSplitPercent?: DisplayValue
+  subagentSplitPercent?: DisplayValue
+  totalCommission?: number | null
+}
+
+export interface RevenueScheduleSplitDisplay {
+  housePercent: string | null
+  houseRepPercent: string | null
+  subagentPercent: string | null
+  totalPercent: string
+  houseAmount: string
+  houseRepAmount: string
+  subagentAmount: string
+  totalAmount: string
+}
+
+export function computeRevenueScheduleSplitDisplay(
+  inputs: RevenueScheduleSplitDisplayInputs
+): RevenueScheduleSplitDisplay {
+  const housePercent = inputs.houseSplitPercent ?? null
+  const houseRepPercent = inputs.houseRepSplitPercent ?? null
+  const subagentPercent = inputs.subagentSplitPercent ?? null
+
+  const houseFraction = parsePercentFractionDisplay(housePercent) ?? 0
+  const houseRepFraction = parsePercentFractionDisplay(houseRepPercent) ?? 0
+  const subagentFraction = parsePercentFractionDisplay(subagentPercent) ?? 0
+
+  const anySplitPresent =
+    !isBlankDisplay(housePercent) ||
+    !isBlankDisplay(houseRepPercent) ||
+    !isBlankDisplay(subagentPercent)
+
+  const totalFraction = anySplitPresent ? houseFraction + houseRepFraction + subagentFraction : null
+  const totalPercent = totalFraction !== null ? `${(totalFraction * 100).toFixed(2)}%` : "--"
+
+  const totalCommission = inputs.totalCommission
+  if (totalCommission === null || totalCommission === undefined || !Number.isFinite(totalCommission)) {
+    return {
+      housePercent,
+      houseRepPercent,
+      subagentPercent,
+      totalPercent,
+      houseAmount: "--",
+      houseRepAmount: "--",
+      subagentAmount: "--",
+      totalAmount: "--"
+    }
+  }
+
+  if (!anySplitPresent) {
+    return {
+      housePercent,
+      houseRepPercent,
+      subagentPercent,
+      totalPercent,
+      houseAmount: "--",
+      houseRepAmount: "--",
+      subagentAmount: "--",
+      totalAmount: totalCommission === 0 ? formatCurrencyUSD(0) : "--"
+    }
+  }
+
+  const houseAmount = totalCommission * houseFraction
+  const houseRepAmount = totalCommission * houseRepFraction
+  const subagentAmount = totalCommission * subagentFraction
+
+  return {
+    housePercent,
+    houseRepPercent,
+    subagentPercent,
+    totalPercent,
+    houseAmount: formatCurrencyUSD(houseAmount),
+    houseRepAmount: formatCurrencyUSD(houseRepAmount),
+    subagentAmount: formatCurrencyUSD(subagentAmount),
+    totalAmount: formatCurrencyUSD(houseAmount + houseRepAmount + subagentAmount)
+  }
+}
+
 export interface RevenueScheduleDisplayInputs {
   quantity?: DisplayValue
   priceEach?: DisplayValue

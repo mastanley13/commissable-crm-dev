@@ -442,6 +442,7 @@ type DepositRow = {
   createdByContactName?: string | null
   createdAt?: string
   updatedAt?: string
+  historicalBucket?: "None" | "SettledHistory" | "OpenOrDisputed"
   // local-only fields
   active?: boolean
 }
@@ -459,6 +460,7 @@ export default function ReconciliationPage() {
   const [pageSize, setPageSize] = useState<number>(100)
   const [columnFilters, setColumnFilters] = useState<ColumnFilter[]>([])
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('all')
+  const [includeSettledHistory, setIncludeSettledHistory] = useState(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [sortConfig, setSortConfig] = useState<{ columnId: string; direction: 'asc' | 'desc' } | null>(null)
   const [selectedReconciliations, setSelectedReconciliations] = useState<string[]>([])
@@ -498,6 +500,9 @@ export default function ReconciliationPage() {
           to,
           pageSize: '500',
         })
+        if (includeSettledHistory) {
+          params.set('includeSettledHistory', 'true')
+        }
 
         const response = await fetch(`/api/reconciliation/deposits?${params.toString()}`, {
           method: 'GET',
@@ -540,7 +545,7 @@ export default function ReconciliationPage() {
       cancelled = true
       controller.abort()
     }
-  }, [selectedMonth])
+  }, [includeSettledHistory, selectedMonth])
 
   const {
     columns: preferenceColumns,
@@ -1122,23 +1127,37 @@ useEffect(() => {
           render: (value: any, row: any) => {
             const rowId = String(row.id || '')
             const label = value ?? row.depositName ?? ''
+            const historicalBucket = row.historicalBucket ?? 'None'
+            const badge =
+              historicalBucket === 'SettledHistory'
+                ? { label: 'Settled History', className: 'bg-slate-100 text-slate-700' }
+                : historicalBucket === 'OpenOrDisputed'
+                  ? { label: 'Open/Disputed', className: 'bg-amber-100 text-amber-800' }
+                  : null
             if (!rowId || !label) {
               return label
             }
             return (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  if (rowId) {
-                    router.push(`/reconciliation/${rowId}`)
-                  }
-                }}
-                className="block truncate min-w-0 text-left text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
-                title={label}
-              >
-                {label}
-              </button>
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (rowId) {
+                      router.push(`/reconciliation/${rowId}`)
+                    }
+                  }}
+                  className="min-w-0 truncate text-left text-blue-600 hover:text-blue-800 cursor-pointer font-medium"
+                  title={label}
+                >
+                  {label}
+                </button>
+                {badge ? (
+                  <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.className}`}>
+                    {badge.label}
+                  </span>
+                ) : null}
+              </div>
             )
           },
         }
@@ -1241,6 +1260,17 @@ useEffect(() => {
         <ListHeader
         pageTitle="DEPOSITS LIST"
         searchPlaceholder="Search reconciliation..."
+        preSearchAccessory={
+          <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={includeSettledHistory}
+              onChange={(event) => setIncludeSettledHistory(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>Include settled history</span>
+          </label>
+        }
         onSearch={handleSearch}
         onFilterChange={handleStatusFilterChange}
         onCreateClick={handleDepositUpload}

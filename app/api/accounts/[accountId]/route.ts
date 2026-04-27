@@ -11,12 +11,25 @@ import { revalidatePath } from "next/cache"
 import { checkDeletionConstraints, softDeleteEntity, permanentDeleteEntity, restoreEntity } from "@/lib/deletion"
 import { ensureActiveOwnerOrNull } from "@/lib/validation"
 import { hasPermission } from "@/lib/auth"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
 function isUuid(value: string | null | undefined): value is string {
   if (!value) return false
   return UUID_REGEX.test(value.trim())
+}
+
+function parseSalesforceIdForApi(value: unknown) {
+  const salesforceId = normalizeSalesforceIdInput(value)
+  if (salesforceId && !isValidSalesforceId(salesforceId)) {
+    return {
+      salesforceId: null,
+      error: "Salesforce ID must be a 15 or 18 character alphanumeric Salesforce ID."
+    }
+  }
+
+  return { salesforceId, error: null }
 }
 
 type AddressInput = {
@@ -342,6 +355,7 @@ export async function GET(
       parentAccountId: account.parentAccountId ?? null,
       accountType: account.accountType?.name ?? "",
       accountTypeId: account.accountTypeId ?? null,
+      salesforceId: account.salesforceId ?? "",
       status: account.status,
       active: account.status === AccountStatus.Active,
       accountOwner: account.owner
@@ -408,6 +422,21 @@ export async function PATCH(
 
     if (typeof payload?.accountLegalName === "string") {
       data.accountLegalName = payload.accountLegalName.trim() || null
+      hasChanges = true
+    }
+
+    if (payload?.salesforceId !== undefined) {
+      const parsedSalesforceId = parseSalesforceIdForApi(payload.salesforceId)
+      if (parsedSalesforceId.error) {
+        return NextResponse.json(
+          {
+            error: parsedSalesforceId.error,
+            errors: { salesforceId: parsedSalesforceId.error }
+          },
+          { status: 400 }
+        )
+      }
+      data.salesforceId = parsedSalesforceId.salesforceId
       hasChanges = true
     }
 
@@ -651,6 +680,18 @@ export async function PATCH(
             )
           }
 
+          if (targetText.includes("tenantId") && targetText.includes("salesforceId")) {
+            return NextResponse.json(
+              {
+                error: "Salesforce ID must be unique.",
+                errors: {
+                  salesforceId: "Salesforce ID must be unique."
+                }
+              },
+              { status: 409 }
+            )
+          }
+
           return NextResponse.json(
             { error: "A record with these details already exists." },
             { status: 409 }
@@ -745,13 +786,6 @@ export async function DELETE(
         }
 
         // Default: Soft deletion
-        if (existing.status === AccountStatus.Active) {
-          return NextResponse.json(
-            { error: "Deactivate the account before deleting." },
-            { status: 400 }
-          )
-        }
-
         const result = await softDeleteEntity('Account', accountId, tenantId, userId, bypassConstraints)
         
         if (!result.success) {

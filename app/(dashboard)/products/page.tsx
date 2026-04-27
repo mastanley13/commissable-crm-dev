@@ -730,6 +730,30 @@ export default function ProductsPage() {
     }
 
     try {
+      const existingProduct = products.find(product => product.id === productId)
+      if (existingProduct?.active) {
+        const response = await fetch(`/api/products/${productId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active: false }),
+        })
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null)
+          return { success: false, error: payload?.error ?? 'Failed to archive product' }
+        }
+
+        setProducts((previous) =>
+          previous.map((product) =>
+            product.id === productId ? { ...product, active: false } : product,
+          ),
+        )
+        setSelectedProducts((previous) => previous.filter((id) => id !== productId))
+        showSuccess('Product moved to Archive', 'The product was marked inactive and can be restored from Archive.')
+        await reloadProducts()
+        return { success: true }
+      }
+
       const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
       const response = await fetch(`/api/products/${productId}`, {
         method: 'DELETE',
@@ -757,7 +781,7 @@ export default function ProductsPage() {
         error: err instanceof Error ? err.message : 'Please try again later.',
       }
     }
-  }, [canEditProducts, reloadProducts, requireAdminForEdit, showSuccess])
+  }, [canEditProducts, products, reloadProducts, requireAdminForEdit, showSuccess])
 
   const openDeleteDialog = useCallback((targets: ProductRow[]) => {
     if (!canEditProducts) {
@@ -770,18 +794,10 @@ export default function ProductsPage() {
       return
     }
 
-    const activeTargets = targets.filter((product) => product.active)
-    if (activeTargets.length > 0) {
-      showWarning(
-        'Some products are active',
-        'Active products cannot be deleted. Choose Deactivate in the dialog to mark them inactive first.',
-      )
-    }
-
     setBulkDeleteTargets(targets)
     setProductToDelete(null)
     setShowDeleteDialog(true)
-  }, [canEditProducts, requireAdminForEdit, showError, showWarning])
+  }, [canEditProducts, requireAdminForEdit, showError])
 
   const requestProductDelete = useCallback((product: ProductRow) => {
     if (!canEditProducts) {
@@ -816,9 +832,43 @@ export default function ProductsPage() {
     setBulkActionLoading(true)
 
     try {
+      const activeTargets = targets.filter(target => target.active)
+      const inactiveTargets = targets.filter(target => !target.active)
+
+      const archivedIds: string[] = []
+      const deletedIds: string[] = []
+      const failures: Array<{ product: ProductRow; message: string }> = []
+
+      if (activeTargets.length > 0) {
+        const archiveOutcomes = await Promise.allSettled(
+          activeTargets.map(async (target) => {
+            const response = await fetch(`/api/products/${target.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ active: false }),
+            })
+            if (!response.ok) {
+              const payload = await response.json().catch(() => null)
+              throw new Error(payload?.error ?? 'Failed to archive product')
+            }
+            return target.id
+          }),
+        )
+
+        archiveOutcomes.forEach((result, index) => {
+          const product = activeTargets[index]
+          if (result.status === 'fulfilled') {
+            archivedIds.push(result.value)
+          } else {
+            const message = result.reason instanceof Error ? result.reason.message : 'Unexpected error'
+            failures.push({ product, message })
+          }
+        })
+      }
+
       const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
       const outcomes = await Promise.allSettled(
-        targets.map(async (target) => {
+        inactiveTargets.map(async (target) => {
           const response = await fetch(`/api/products/${target.id}`, {
             method: 'DELETE',
             ...(trimmedReason
@@ -836,13 +886,10 @@ export default function ProductsPage() {
         }),
       )
 
-      const failures: Array<{ product: ProductRow; message: string }> = []
-      const successIds: string[] = []
-
       outcomes.forEach((result, index) => {
-        const product = targets[index]
+        const product = inactiveTargets[index]
         if (result.status === 'fulfilled') {
-          successIds.push(product.id)
+          deletedIds.push(product.id)
         } else {
           const message =
             result.reason instanceof Error ? result.reason.message : 'Unexpected error'
@@ -850,14 +897,34 @@ export default function ProductsPage() {
         }
       })
 
-      if (successIds.length > 0) {
-        const successSet = new Set(successIds)
-        setProducts((previous) => previous.filter((product) => !successSet.has(product.id)))
-        setSelectedProducts((previous) => previous.filter((id) => !successSet.has(id)))
-        showSuccess(
-          `Deleted ${successIds.length} product${successIds.length === 1 ? '' : 's'}`,
-          'The selected products have been deleted.',
+      if (archivedIds.length > 0 || deletedIds.length > 0) {
+        const archivedSet = new Set(archivedIds)
+        const deletedSet = new Set(deletedIds)
+        setProducts((previous) =>
+          previous
+            .filter((product) => !deletedSet.has(product.id))
+            .map((product) =>
+              archivedSet.has(product.id) ? { ...product, active: false } : product,
+            ),
         )
+        setSelectedProducts((previous) => previous.filter((id) => !archivedSet.has(id) && !deletedSet.has(id)))
+      }
+
+      if (archivedIds.length > 0) {
+        showSuccess(
+          `Archived ${archivedIds.length} product${archivedIds.length === 1 ? '' : 's'}`,
+          'Active products were marked inactive and can be restored from Archive.',
+        )
+      }
+
+      if (deletedIds.length > 0) {
+        showSuccess(
+          `Deleted ${deletedIds.length} product${deletedIds.length === 1 ? '' : 's'}`,
+          'The selected inactive products have been deleted.',
+        )
+      }
+
+      if (archivedIds.length > 0 || deletedIds.length > 0) {
         await reloadProducts()
       }
 
@@ -1827,14 +1894,10 @@ export default function ProductsPage() {
             return result
           }}
           userCanPermanentDelete
-          disallowActiveDelete={
-            bulkDeleteTargets.length > 0
-              ? bulkDeleteTargets.some((product) => !!product.active)
-              : Boolean(productToDelete?.active)
-          }
+          hideDeactivateAction
           modalSize="revenue-schedules"
           requireReason
-          note="Products cannot be deleted when they are tied to revenue schedules. Only inactive products without revenue schedules can be deleted."
+          note="Delete archives active products directly. Inactive products can then be permanently deleted when they are not tied to active revenue schedules or active opportunities."
         />
       ) : null}
 

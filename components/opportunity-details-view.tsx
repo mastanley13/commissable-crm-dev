@@ -6046,14 +6046,10 @@ useEffect(() => {
           return result.success ? { success: true } : { success: false, error: result.error }
         }}
         userCanPermanentDelete={false}
-        disallowActiveDelete={
-          lineItemBulkDeleteTargets.length > 0
-            ? lineItemBulkDeleteTargets.some(item => item.active !== false)
-            : (lineItemToDelete ? lineItemToDelete.active !== false : false)
-        }
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Product line items must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
+        note="Delete removes the selected product line items directly."
       />
 
 

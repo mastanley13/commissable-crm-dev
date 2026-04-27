@@ -4,6 +4,15 @@ import { AuditAction, DataEntity, Prisma } from "@prisma/client"
 
 import { prisma } from "@/lib/db"
 import { withBotAuth, type BotAuthenticatedRequest, logBotAuditEvent } from "@/lib/bot-auth"
+import {
+  OPENCLAW_READ_ONLY_TOOL_DEFINITIONS,
+  OPENCLAW_V1_CAPABILITY_REGISTRY_VERSION,
+  OPENCLAW_V1_INTENT_CAPABILITIES,
+  buildOpenClawRuntimeContract,
+  rankTopUsageAccounts,
+  resolveIntentFromMessage,
+  resolveCalendarDateRange,
+} from "@/lib/openclaw/read-only-tools"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -222,24 +231,8 @@ function mapSchedule(schedule: any) {
 }
 
 async function handleManifest(request: BotAuthenticatedRequest) {
-  const tools = [
-    "accounts/search",
-    "accounts/:id/context",
-    "contacts/search",
-    "products/search",
-    "opportunities/search",
-    "opportunities/:id/context",
-    "revenue-schedules/search",
-    "revenue-schedules/top-usage-accounts",
-    "reconciliation/deposits/search",
-    "reconciliation/deposits/:id/detail",
-    "reconciliation/summary",
-    "imports/readiness",
-    "imports/recent",
-    "imports/:id/errors",
-    "records/link",
-    "tickets/draft",
-  ]
+  const tools = OPENCLAW_READ_ONLY_TOOL_DEFINITIONS.map((tool) => tool.path)
+  const runtimeContract = buildOpenClawRuntimeContract("/api/bot/v1/tools")
 
   await logToolRead(request, "manifest", tools.length)
   return jsonData({
@@ -248,7 +241,51 @@ async function handleManifest(request: BotAuthenticatedRequest) {
     basePath: "/api/bot/v1/tools",
     auth: "Authorization: Bearer <OPENCLAW_API_KEY>",
     tools,
+    toolDefinitions: OPENCLAW_READ_ONLY_TOOL_DEFINITIONS,
+    capabilityRegistry: {
+      version: OPENCLAW_V1_CAPABILITY_REGISTRY_VERSION,
+      path: "/api/bot/v1/tools/capabilities",
+      intentCount: OPENCLAW_V1_INTENT_CAPABILITIES.length,
+    },
+    capabilityResolver: {
+      path: runtimeContract.capabilityResolverPath,
+      routeDiscoveryAllowed: runtimeContract.routeDiscoveryAllowed,
+    },
+    runtimeContract,
   })
+}
+
+async function handleCapabilities(request: BotAuthenticatedRequest) {
+  await logToolRead(request, "capabilities", OPENCLAW_V1_INTENT_CAPABILITIES.length)
+  return jsonData({
+    version: OPENCLAW_V1_CAPABILITY_REGISTRY_VERSION,
+    basePath: "/api/bot/v1/tools",
+    runtimeContract: buildOpenClawRuntimeContract("/api/bot/v1/tools"),
+    tools: OPENCLAW_READ_ONLY_TOOL_DEFINITIONS,
+    capabilities: OPENCLAW_V1_INTENT_CAPABILITIES,
+  })
+}
+
+async function handleCapabilityResolution(request: BotAuthenticatedRequest) {
+  const params = request.nextUrl.searchParams
+  const message = stringParam(params, "message", "q", "utterance")
+  if (!message) {
+    return NextResponse.json(
+      { status: "error", error: "message is required" },
+      { status: 400 },
+    )
+  }
+
+  const resolution = resolveIntentFromMessage({ message })
+  await logToolRead(request, "capabilities/resolve", resolution.matches.length)
+  return jsonData(
+    resolution,
+    {
+      tenant_id: request.user.tenantId,
+      resolverPath: "/api/bot/v1/tools/capabilities/resolve",
+      routeDiscoveryAllowed: false,
+    },
+  )
 }
 
 async function handleAccountSearch(request: BotAuthenticatedRequest) {
@@ -715,8 +752,12 @@ async function handleScheduleSearch(request: BotAuthenticatedRequest) {
 
 async function handleTopUsageAccounts(request: BotAuthenticatedRequest) {
   const params = request.nextUrl.searchParams
-  const from = dateParam(params, "from", "dateFrom") ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-  const to = dateParam(params, "to", "dateTo") ?? new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+  const rangeResult = resolveCalendarDateRange({ searchParams: params })
+  if (!rangeResult.ok) {
+    return NextResponse.json({ status: "error", error: rangeResult.error }, { status: 400 })
+  }
+
+  const range = rangeResult.value
   const limit = parseLimit(params, 5, 25)
 
   const grouped = await prisma.revenueSchedule.groupBy({
@@ -724,7 +765,7 @@ async function handleTopUsageAccounts(request: BotAuthenticatedRequest) {
     where: {
       tenantId: request.user.tenantId,
       deletedAt: null,
-      scheduleDate: { gte: from, lte: to },
+      scheduleDate: { gte: range.from, lt: range.toExclusive },
     },
     _sum: {
       expectedUsage: true,
@@ -735,8 +776,6 @@ async function handleTopUsageAccounts(request: BotAuthenticatedRequest) {
       actualCommission: true,
     },
     _count: { _all: true },
-    orderBy: [{ _sum: { actualUsage: "desc" } }, { _sum: { expectedUsage: "desc" } }],
-    take: limit,
   })
 
   const accounts = await prisma.account.findMany({
@@ -745,33 +784,29 @@ async function handleTopUsageAccounts(request: BotAuthenticatedRequest) {
   })
   const accountById = new Map(accounts.map((account) => [account.id, account]))
 
-  const data = grouped.map((row, index) => {
-    const expectedUsage = toNumber(row._sum.expectedUsage)
-    const usageAdjustment = toNumber(row._sum.usageAdjustment)
-    const actualUsage = toNumber(row._sum.actualUsage)
-    const actualUsageAdjustment = toNumber(row._sum.actualUsageAdjustment)
-
-    return {
-      rank: index + 1,
-      account: accountById.get(row.accountId) ?? { id: row.accountId, accountName: "Unknown account", accountLegalName: null, accountNumber: null },
+  const data = rankTopUsageAccounts(
+    grouped.map((row) => ({
+      accountId: row.accountId,
+      account: accountById.get(row.accountId) ?? null,
       scheduleCount: row._count._all,
-      expectedUsage: round(expectedUsage),
-      usageAdjustment: round(usageAdjustment),
-      expectedUsageNet: round(expectedUsage + usageAdjustment),
-      actualUsage: round(actualUsage),
-      actualUsageAdjustment: round(actualUsageAdjustment),
-      actualUsageNet: round(actualUsage + actualUsageAdjustment),
-      expectedCommission: round(toNumber(row._sum.expectedCommission)),
-      actualCommission: round(toNumber(row._sum.actualCommission)),
-    }
-  })
+      expectedUsage: row._sum.expectedUsage,
+      usageAdjustment: row._sum.usageAdjustment,
+      actualUsage: row._sum.actualUsage,
+      actualUsageAdjustment: row._sum.actualUsageAdjustment,
+      expectedCommission: row._sum.expectedCommission,
+      actualCommission: row._sum.actualCommission,
+    })),
+  ).slice(0, limit)
 
   await logToolRead(request, "revenue-schedules/top-usage-accounts", data.length)
   return jsonData(data, {
     tenant_id: request.user.tenantId,
-    from: dateOnly(from),
-    to: dateOnly(to),
+    month: range.month,
+    from: range.fromDate,
+    to: range.toDate,
+    dateFilterMode: range.mode,
     limit,
+    rankingPolicy: "actual_usage_net_else_expected_usage_net",
   })
 }
 
@@ -1147,6 +1182,12 @@ async function handleTicketDraft(request: BotAuthenticatedRequest) {
 async function dispatchGet(request: NextRequest, path: string[]) {
   if (path.length === 0 || (path.length === 1 && path[0] === "manifest")) {
     return withBotAuth(request, [], handleManifest)
+  }
+  if (path.length === 1 && path[0] === "capabilities") {
+    return withBotAuth(request, [], handleCapabilities)
+  }
+  if (path.length === 2 && path[0] === "capabilities" && path[1] === "resolve") {
+    return withBotAuth(request, [], handleCapabilityResolution)
   }
   if (path.length === 2 && path[0] === "accounts" && path[1] === "search") {
     return withBotAuth(request, ACCOUNT_READ_PERMISSIONS, handleAccountSearch)

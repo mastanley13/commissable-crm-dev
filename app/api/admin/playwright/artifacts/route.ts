@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   return withPermissions(request, ['admin.playwright.read'], async () => {
     const runId = request.nextUrl.searchParams.get('run')
     const artifactPath = request.nextUrl.searchParams.get('path')
+    const shouldDownload = request.nextUrl.searchParams.get('download') === '1'
 
     if (!runId || !artifactPath) {
       return createErrorResponse('Both "run" and "path" query parameters are required.', 400)
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="${path.basename(resolvedPath)}"`,
+        'Content-Disposition': `${shouldDownload ? 'attachment' : 'inline'}; filename="${path.basename(resolvedPath)}"`,
         'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
       },

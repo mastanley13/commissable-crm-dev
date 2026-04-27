@@ -2280,8 +2280,11 @@ export function DepositReconciliationDetailView({
         sortable: true,
         render: (value: string | undefined, row: DepositLineItemRow) => {
           const trimmedName = value?.trim()
-          const href = row.accountId
-            ? `/accounts/${encodeURIComponent(row.accountId)}`
+          const resolvedAccountHref = row.resolvedAccountId
+            ? `/accounts/${encodeURIComponent(row.resolvedAccountId)}`
+            : null
+          const href = resolvedAccountHref
+            ? resolvedAccountHref
             : trimmedName
               ? `/accounts?search=${encodeURIComponent(trimmedName)}`
               : "/accounts"
@@ -2307,8 +2310,11 @@ export function DepositReconciliationDetailView({
         sortable: true,
         render: (value: string, row: DepositLineItemRow) => {
           const trimmedName = value?.trim()
-          const href = row.accountId
-            ? `/accounts/${encodeURIComponent(row.accountId)}`
+          const resolvedAccountHref = row.resolvedAccountId
+            ? `/accounts/${encodeURIComponent(row.resolvedAccountId)}`
+            : null
+          const href = resolvedAccountHref
+            ? resolvedAccountHref
             : trimmedName
               ? `/accounts?search=${encodeURIComponent(trimmedName)}`
               : "/accounts"

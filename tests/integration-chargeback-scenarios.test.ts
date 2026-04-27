@@ -520,7 +520,7 @@ integrationTest("CHARGEBACK-03: chargeback reversal creates linked CB-REV histor
   })
   assert.equal(flexReviewItems.length, 2)
   assert.deepEqual(
-    flexReviewItems.map(item => [item.revenueScheduleId, item.flexClassification]),
+    flexReviewItems.map((item: { revenueScheduleId: string; flexClassification: string | null }) => [item.revenueScheduleId, item.flexClassification]),
     [
       [chargebackScheduleId, "FlexChargeback"],
       [reversalScheduleId, "FlexChargebackReversal"],
@@ -537,22 +537,22 @@ integrationTest("CHARGEBACK-03: chargeback reversal creates linked CB-REV histor
     orderBy: { createdAt: "asc" },
   })
 
-  const chargebackAudits = revenueScheduleAudits.filter(entry => entry.entityId === chargebackScheduleId)
-  const reversalAudits = revenueScheduleAudits.filter(entry => entry.entityId === reversalScheduleId)
+  const chargebackAudits = revenueScheduleAudits.filter((entry: { entityId: string; action: string; newValues: unknown }) => entry.entityId === chargebackScheduleId)
+  const reversalAudits = revenueScheduleAudits.filter((entry: { entityId: string; action: string; newValues: unknown }) => entry.entityId === reversalScheduleId)
 
-  const chargebackCreateAudit = chargebackAudits.find(entry => {
+  const chargebackCreateAudit = chargebackAudits.find((entry: { entityId: string; action: string; newValues: unknown }) => {
     const payload = parseAuditPayload<Record<string, unknown>>(entry.newValues)
     return entry.action === "Create" && payload?.action === "FlexCreateChargeback"
   })
-  const chargebackApproveAudit = chargebackAudits.find(entry => {
+  const chargebackApproveAudit = chargebackAudits.find((entry: { entityId: string; action: string; newValues: unknown }) => {
     const payload = parseAuditPayload<Record<string, unknown>>(entry.newValues)
     return entry.action === "Update" && payload?.action === "ApproveFlex"
   })
-  const reversalCreateAudit = reversalAudits.find(entry => {
+  const reversalCreateAudit = reversalAudits.find((entry: { entityId: string; action: string; newValues: unknown }) => {
     const payload = parseAuditPayload<Record<string, unknown>>(entry.newValues)
     return entry.action === "Create" && payload?.action === "FlexCreateChargebackReversal"
   })
-  const reversalApproveAudit = reversalAudits.find(entry => {
+  const reversalApproveAudit = reversalAudits.find((entry: { entityId: string; action: string; newValues: unknown }) => {
     const payload = parseAuditPayload<Record<string, unknown>>(entry.newValues)
     return entry.action === "Update" && payload?.action === "ApproveFlex"
   })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { prisma } from "@/lib/db"
 import { getTenantVarianceTolerance } from "@/lib/matching/settings"
+import { resolveUniqueDepositLineAccount } from "@/lib/reconciliation/deposit-line-account-resolution"
 import {
   createFlexChargebackForNegativeLine,
   createFlexChargebackReversalForPositiveLine,
@@ -35,11 +36,14 @@ export async function POST(
       where: { tenantId, id: lineId, depositId },
       select: {
         id: true,
+        accountId: true,
+        accountNameRaw: true,
+        vendorAccountId: true,
         reconciled: true,
         status: true,
         usage: true,
         commission: true,
-        deposit: { select: { accountId: true } },
+        deposit: { select: { accountId: true, distributorAccountId: true, vendorAccountId: true } },
       },
     })
     if (!line) {
@@ -55,6 +59,13 @@ export async function POST(
     const attachRevenueScheduleId = body?.attachRevenueScheduleId?.trim() || null
 
     const varianceTolerance = await getTenantVarianceTolerance(tenantId)
+    const resolvedCustomerAccount = await resolveUniqueDepositLineAccount(prisma, {
+      tenantId,
+      persistedAccountId: line.accountId ?? null,
+      accountNameRaw: line.accountNameRaw ?? null,
+      distributorAccountId: line.deposit.distributorAccountId ?? line.deposit.accountId ?? null,
+      vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
+    })
 
     try {
       const result = await prisma.$transaction(async tx => {
@@ -86,6 +97,7 @@ export async function POST(
 
         return await (async () => {
               let attach = {
+                accountId: null as string | null,
                 opportunityId: null as string | null,
                 opportunityProductId: null as string | null,
                 distributorAccountId: null as string | null,
@@ -107,10 +119,11 @@ export async function POST(
                 if (!baseSchedule) {
                   throw new Error("Attach schedule not found")
                 }
-                if (baseSchedule.accountId !== line.deposit.accountId) {
+                if (resolvedCustomerAccount?.id && baseSchedule.accountId !== resolvedCustomerAccount.id) {
                   throw new Error("Attach schedule must belong to the same customer account")
                 }
                 attach = {
+                  accountId: baseSchedule.accountId,
                   opportunityId: baseSchedule.opportunityId ?? null,
                   opportunityProductId: baseSchedule.opportunityProductId ?? null,
                   distributorAccountId: baseSchedule.distributorAccountId ?? null,
@@ -118,11 +131,17 @@ export async function POST(
                 }
               }
 
+              const targetAccountId = resolvedCustomerAccount?.id ?? attach.accountId
+              if (!targetAccountId) {
+                throw new Error("Unable to resolve a customer account for this deposit line. Create or match the customer account first.")
+              }
+
                return await createFlexProductForUnknownLine(tx, {
                  tenantId,
                  userId: req.user.id,
                  depositId,
                  lineItemId: lineId,
+                 targetAccountId,
                  varianceTolerance,
                  attachOpportunityId: attach.opportunityId,
                  attachOpportunityProductId: attach.opportunityProductId,

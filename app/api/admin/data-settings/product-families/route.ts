@@ -7,84 +7,12 @@ export const dynamic = "force-dynamic"
 
 const MANAGE_PERMISSIONS = ["admin.data_settings.manage"]
 
-const DEFAULT_PRODUCT_FAMILIES = [
-  {
-    code: "AI_SERVICES",
-    name: "AI Services",
-    description:
-      "AI-based services such as automation, assistants, and intelligent analytics."
-  },
-  {
-    code: "INTERNET_VOICE",
-    name: "Internet & Voice Connectivity",
-    description: "Core internet, voice, and connectivity services."
-  },
-  {
-    code: "CYBERSECURITY",
-    name: "Cybersecurity Services",
-    description: "Security offerings including threat protection and monitoring."
-  },
-  {
-    code: "DATA_PROTECTION",
-    name: "Data Protection",
-    description: "Backup, archiving, and data protection solutions."
-  },
-  {
-    code: "HARDWARE",
-    name: "Hardware Products",
-    description: "Physical devices, infrastructure, and related equipment."
-  },
-  {
-    code: "INSTALLATION",
-    name: "Installation Services",
-    description: "Implementation, installation, and turn-up services."
-  },
-  {
-    code: "MAINTENANCE",
-    name: "Maintenance Products",
-    description: "Maintenance contracts and support entitlements."
-  },
-  {
-    code: "SOFTWARE",
-    name: "Software Products",
-    description: "Software licenses, subscriptions, and SaaS products."
-  }
-] as const
-
 function normalizeCode(value: string): string {
   return value
     .trim()
     .replace(/[^a-z0-9]+/gi, "_")
     .replace(/^_+|_+$/g, "")
     .toUpperCase()
-}
-
-async function ensureDefaultProductFamilies(tenantId: string) {
-  // Use individual upserts so the logic stays simple and works cleanly
-  // with the lazy Prisma proxy used in the app. This is still idempotent
-  // and safe under concurrency for our small, static seed set.
-  for (let index = 0; index < DEFAULT_PRODUCT_FAMILIES.length; index += 1) {
-    const def = DEFAULT_PRODUCT_FAMILIES[index]
-    // eslint-disable-next-line no-await-in-loop
-    await prisma.productFamily.upsert({
-      where: {
-        tenantId_code: {
-          tenantId,
-          code: def.code
-        }
-      },
-      update: {},
-      create: {
-        tenantId,
-        code: def.code,
-        name: def.name,
-        description: def.description,
-        isActive: true,
-        isSystem: true,
-        displayOrder: (index + 1) * 10
-      }
-    })
-  }
 }
 
 export async function GET(request: NextRequest) {
@@ -97,8 +25,6 @@ export async function GET(request: NextRequest) {
       const includeInactive = url.searchParams.get("includeInactive") === "true"
 
       try {
-        await ensureDefaultProductFamilies(tenantId)
-
         const families = await prisma.productFamily.findMany({
           where: {
             tenantId,
@@ -320,13 +246,6 @@ export async function DELETE(request: NextRequest) {
 
         if (!existing) {
           return createErrorResponse("Product family not found", 404)
-        }
-
-        if (existing.isSystem) {
-          return createErrorResponse(
-            "System product families cannot be deleted",
-            400
-          )
         }
 
         if ((existing._count?.subtypes ?? 0) > 0) {

@@ -182,15 +182,16 @@ export async function POST(
       if (autoFillAuditLogIdsFromApply.length > 0) {
         auditLogIdsToUndo.push(...autoFillAuditLogIdsFromApply)
       } else if (matchIds.length > 0) {
+        const matchIdTextComparisons = matchIds.map(matchId => Prisma.sql`CAST(${matchId} AS text)`)
         const auditLogRows = await tx.$queryRaw<Array<{ id: string }>>(
           Prisma.sql`
             SELECT "id"
             FROM "AuditLog"
-            WHERE "tenantId" = ${tenantId}
+            WHERE "tenantId" = CAST(${tenantId} AS uuid)
               AND "createdAt" >= ${group.createdAt}
               AND "metadata"->>'action' = 'AutoFillFromDepositMatch'
-              AND "metadata"->>'depositId' = ${depositId}
-              AND ("metadata"->>'depositLineMatchId') IN (${Prisma.join(matchIds)})
+              AND "metadata"->>'depositId' = CAST(${depositId} AS text)
+              AND ("metadata"->>'depositLineMatchId') IN (${Prisma.join(matchIdTextComparisons)})
           `,
         )
         auditLogIdsToUndo.push(...auditLogRows.map(row => row.id))

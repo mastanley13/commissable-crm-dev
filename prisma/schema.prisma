@@ -33,6 +33,7 @@ model Tenant {
   groups                  Group[]
   groupMembers            GroupMember[]
   importJobs              ImportJob[]
+  importJobRecords        ImportJobRecord[]
   industries              Industry[]
   productFamilies         ProductFamily[]
   productSubtypes         ProductSubtype[]
@@ -329,6 +330,7 @@ model Account {
   shippingSyncBilling                  Boolean                  @default(false)
   mapPlaceId                           String?
   mapUrl                               String?
+  salesforceId                         String?                  @db.VarChar(18)
   copyProtected                        Boolean                  @default(false)
   createdAt                            DateTime                 @default(now())
   updatedAt                            DateTime                 @updatedAt
@@ -369,6 +371,7 @@ model Account {
   depositLineItemsAsVendor             DepositLineItem[]        @relation("VendorAccountForDepositLine")
 
   @@unique([tenantId, accountName])
+  @@unique([tenantId, salesforceId])
   @@index([tenantId, accountTypeId])
   @@index([tenantId, ownerId])
   @@index([tenantId, status])
@@ -815,6 +818,10 @@ model Deposit {
   reconciliationTemplateId  String?              @db.Uuid
   createdByUserId           String?              @db.Uuid
   createdByContactId        String?              @db.Uuid
+  historicalBucket          HistoricalDepositBucket @default(None)
+  sourceSystem              String?
+  sourceDepositKey          String?
+  importedViaAdmin          Boolean              @default(false)
   notes                     String?
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime             @updatedAt
@@ -833,6 +840,8 @@ model Deposit {
   @@index([tenantId, paymentDate])
   @@index([tenantId, distributorAccountId, vendorAccountId])
   @@index([tenantId, reconciliationTemplateId])
+  @@index([tenantId, historicalBucket])
+  @@unique([tenantId, sourceSystem, sourceDepositKey])
 }
 
 model DepositLineItem {
@@ -854,6 +863,8 @@ model DepositLineItem {
   productNameRaw            String?
   partNumberRaw             String?
   distributorNameRaw        String?
+  sourceSystem              String?
+  sourceTransactionKey      String?
   locationId                String?
   customerPurchaseOrder     String?
   metadata                  Json?
@@ -883,8 +894,10 @@ model DepositLineItem {
   @@index([tenantId, accountIdVendor])
   @@index([tenantId, customerIdVendor])
   @@index([tenantId, orderIdVendor])
+  @@index([tenantId, sourceTransactionKey])
   @@index([reconciled])
   @@index([hasSuggestedMatches])
+  @@unique([tenantId, sourceSystem, sourceTransactionKey])
 }
 
 model DepositLineMatch {
@@ -1364,17 +1377,47 @@ model ImportJob {
   startedAt     DateTime?
   completedAt   DateTime?
   filters       Json?
+  undoStatus    ImportJobUndoStatus @default(NotTracked)
+  undoStartedAt DateTime?
+  undoCompletedAt DateTime?
+  undoneByUserId String?            @db.Uuid
+  undoSummary   Json?
+  undoError     String?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   errors        ImportError[]
+  records       ImportJobRecord[]
   createdBy     User?              @relation(fields: [createdById], references: [id])
   tenant        Tenant             @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, entity])
   @@index([tenantId, status])
+  @@index([tenantId, undoStatus])
   @@unique([tenantId, entity, idempotencyKey])
 }
 
+model ImportJobRecord {
+  id             String                   @id @default(uuid()) @db.Uuid
+  importJobId    String                   @db.Uuid
+  tenantId       String                   @db.Uuid
+  rowNumber      Int
+  entityName     String
+  entityId       String                   @db.Uuid
+  operation      ImportJobRecordOperation
+  undoAction     ImportJobUndoAction      @default(None)
+  undoOrder      Int                      @default(0)
+  previousValues Json?
+  newValues      Json?
+  undoneAt       DateTime?
+  undoError      String?
+  createdAt      DateTime                 @default(now())
+  importJob      ImportJob                @relation(fields: [importJobId], references: [id], onDelete: Cascade)
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id])
+
+  @@index([importJobId, undoOrder])
+  @@index([tenantId, entityName, entityId])
+  @@unique([importJobId, entityName, entityId, operation])
+}
 model ImportError {
   id          String    @id @default(uuid()) @db.Uuid
   importJobId String    @db.Uuid
@@ -1792,12 +1835,40 @@ enum JobStatus {
   Failed
 }
 
+
+enum ImportJobUndoStatus {
+  NotTracked
+  Undoable
+  Blocked
+  Undoing
+  Undone
+  UndoFailed
+}
+
+enum ImportJobRecordOperation {
+  Created
+  Updated
+  Skipped
+}
+
+enum ImportJobUndoAction {
+  None
+  DeleteCreatedRecord
+}
+
+enum HistoricalDepositBucket {
+  None
+  SettledHistory
+  OpenOrDisputed
+}
 enum DataEntity {
   Accounts
   Contacts
+  OpportunityLineItems
   Opportunities
   Products
   RevenueSchedules
+  DepositTransactions
   Reconciliations
   Activities
   Tickets

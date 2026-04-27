@@ -13,6 +13,8 @@ import {
   Shield,
   Settings,
   BarChart3,
+  BookOpen,
+  Bot,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -33,6 +35,8 @@ export const navigation: NavItem[] = [
   { name: 'Groups', href: '/groups', icon: Users2 },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
   { name: 'Tickets', href: '/tickets', icon: Ticket },
+  { name: 'Bot', href: '/bot', icon: Bot },
+  { name: 'Resources', href: '/resources', icon: BookOpen },
   { name: 'Activities', href: '/activities', icon: Activity },
   { name: 'Admin', href: '/admin', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },

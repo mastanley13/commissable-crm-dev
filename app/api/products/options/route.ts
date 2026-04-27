@@ -3,7 +3,6 @@ import { AccountStatus } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { resolveTenantId } from "@/lib/server-utils"
 import { getEnabledRevenueTypeOptions } from "@/lib/server-revenue-types"
-import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributor"
 
 export const dynamic = "force-dynamic"
 
@@ -12,7 +11,6 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const tenantId = await resolveTenantId(searchParams.get("tenantId"))
 
-    await ensureNoneDirectDistributorAccount(tenantId)
     const revenueTypes = await getEnabledRevenueTypeOptions(tenantId)
 
     const accounts = await prisma.account.findMany({
@@ -22,22 +20,26 @@ export async function GET(request: NextRequest) {
         accountType: {
           is: {
             OR: [
-              { name: { equals: "Distributor", mode: "insensitive" } },
-              { name: { equals: "Vendor", mode: "insensitive" } },
+              { code: { equals: "DISTRIBUTOR", mode: "insensitive" } },
+              { code: { equals: "VENDOR", mode: "insensitive" } }
             ],
           },
         },
       },
       orderBy: { accountName: "asc" },
-      select: { id: true, accountName: true, accountType: { select: { name: true } } },
+      select: {
+        id: true,
+        accountName: true,
+        accountType: { select: { name: true, code: true } }
+      },
     })
 
     const toOption = (a: typeof accounts[number]) => ({ value: a.id, label: a.accountName })
     const distributorAccounts = accounts
-      .filter((a) => (a.accountType?.name ?? "").toLowerCase() === "distributor")
+      .filter((a) => (a.accountType?.code ?? "").toUpperCase() === "DISTRIBUTOR")
       .map(toOption)
     const vendorAccounts = accounts
-      .filter((a) => (a.accountType?.name ?? "").toLowerCase() === "vendor")
+      .filter((a) => (a.accountType?.code ?? "").toUpperCase() === "VENDOR")
       .map(toOption)
 
     return NextResponse.json({

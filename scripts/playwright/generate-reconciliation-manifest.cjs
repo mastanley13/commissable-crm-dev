@@ -163,6 +163,27 @@ const LIVE_RUNTIME_MAP = {
       'This run uses the intended RS-031 commission-underage ManyToOne fixture, not the older shape-only grouped shortcut.',
     ],
   },
+  'RS-043': {
+    lane: 'deterministic',
+    flowId: 'rs043-manytoone-weighted-rate',
+    depositId: 'f660e6fe-9c1c-45d1-b172-5ed13d89bb2d',
+    lineId: '0df95f40-0d53-4d69-b06f-c5c8462d6c59',
+    lineIds: [
+      '0df95f40-0d53-4d69-b06f-c5c8462d6c59',
+      '554730da-eb12-4fcc-9f55-1ed72af29b88',
+      '9f64f22e-a9e5-4ec5-b8e6-4ae3f4797d2e',
+    ],
+    scheduleIds: ['1274ec2a-54c2-4dcb-9185-6f1cee0de73c'],
+    notes: [
+      'Uses the dedicated RS-043 grouped weighted-rate fixture instead of the shared generic ManyToOne runtime placeholder.',
+      'All three deposit lines hold the same 15.00% actual commission rate so grouped preview stays valid without triggering mixed-rate replacement handling.',
+      'The target schedule still expects 16.00%, making this a row-specific weighted-rate variance proof rather than generic grouped runtime shape only.',
+    ],
+    resultNotes: [
+      'Dedicated RS-043 fixture totals 1000 usage and 150 commission against a target schedule expecting 1000 usage and 160 commission.',
+      'Expected rate should remain 16.0000% while the grouped weighted actual rate should compute to 15.0000%.',
+    ],
+  },
   'RS-068': {
     flowId: 'tc04-conflict-set',
     depositId: 'e70b304d-a4ab-4367-a983-3040460cbb1e',
@@ -187,8 +208,12 @@ const LIVE_RUNTIME_MAP = {
       '7192635a-363e-4ee7-8f03-706686ea6f3e',
     ],
     notes: [
-      'Uses the Wave 1 TC-03 pending deposit because it returns both the old and new schedule pair for the same account/product/order combination.',
+      'Uses the restored Wave 1 TC-03 pending deposit after aligning the stale distributor-side fixture to the Telarus-backed old/new schedule family.',
+      'This scenario should surface both the old and new schedule pair for the same account/product/order combination once the RS-069 bootstrap repair script has been applied.',
       'This is a decision-point UI review scenario, not a clean single-candidate exact-match case.',
+    ],
+    resultNotes: [
+      'If the RS-069 repair fixture is healthy, the candidate payload should include both mapped schedule IDs and the browser list should surface the old/new ambiguity for operator review.',
     ],
   },
   'RS-073': {
@@ -238,20 +263,21 @@ const GENERIC_RUNTIME_FIXTURES = {
   GENERIC_M_TO_1: {
     flowId: 'generic-mto1-combined-family',
     validationScope: 'runtime-path-validation',
-    depositId: '5924386a-06d7-4316-934d-f2c24a83bd02',
-    lineId: '66a26591-4e51-44d4-8e52-799a8d2f04ff',
-    scheduleIds: [
-      'e62cf05e-2db1-4dfd-bb79-0e9afb252905',
-      '298d5845-062e-4c3a-87fa-f01bd3df41f0',
-      'a8314759-c305-4a43-9f2b-545058c3534f',
+    depositId: '75fd941e-8614-40fc-b9ee-39acac07450e',
+    lineId: 'b206178c-5f7e-44a4-9455-b017ff854d13',
+    lineIds: [
+      'b206178c-5f7e-44a4-9455-b017ff854d13',
+      '2b4d9b75-d7dc-4125-a199-01d70e0c2c59',
+      'fba76747-c604-412c-8f1b-4f03b7600a6e',
     ],
+    scheduleIds: ['1274ec2a-54c2-4dcb-9185-6f1cee0de73c'],
     notes: [
-      'Uses the imported generic M:1 starter deposit with one combined deposit line against the intended three-schedule split family.',
-      'Current shared TEST data still includes extra candidate collisions, so this mapping is evidence for the live workflow shape rather than a deterministic final pass.',
+      'Uses the imported generic grouped multi-line fixture as the representative ManyToOne runtime path for rows that still need grouped workflow proof.',
+      'This remap intentionally reuses the already-proven shared grouped fixture so stale one-line/three-schedule placeholder mappings no longer block execution.',
     ],
     resultNotes: [
       'This run should be treated as runtime-path validation only.',
-      'The mapped generic grouped fixture is still a stale shape-only shortcut until a row-specific ManyToOne fixture exists.',
+      'The mapped generic grouped fixture is now a true ManyToOne shape, but it is still representative grouped-family coverage rather than row-specific business proof.',
     ],
   },
   GENERIC_NONE: {

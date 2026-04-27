@@ -271,6 +271,20 @@ export function buildDefaultAllocationsForMatchGroup(params: {
     createdAt?: Date | null
   }>
 }): MatchGroupAllocationInput[] {
+  if (params.matchType === "OneToOne") {
+    const line = params.lines[0]
+    const schedule = params.schedules[0]
+    if (!line || !schedule) return []
+    return [
+      {
+        lineId: line.id,
+        scheduleId: schedule.id,
+        usageAmount: Math.max(0, toNumber(line.usageUnallocated)),
+        commissionAmount: Math.max(0, toNumber(line.commissionUnallocated)),
+      },
+    ]
+  }
+
   if (params.matchType === "OneToMany") {
     const line = params.lines[0]
     const totalUsage = Math.max(0, toNumber(line?.usageUnallocated))

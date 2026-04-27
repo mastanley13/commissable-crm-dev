@@ -89,6 +89,7 @@ export interface ReconciliationSummaryPayload {
     laneCounts: Record<string, number>
     passes: ReconciliationScenarioRow[]
     pendingUiReview: ReconciliationScenarioRow[]
+    runtimePathValidations: ReconciliationScenarioRow[]
     failures: ReconciliationScenarioRow[]
     blocked: ReconciliationScenarioRow[]
     notRecorded: ReconciliationScenarioRow[]
@@ -204,21 +205,25 @@ export function sanitizeReconciliationSummaryPayload(
   const raw = payload as Partial<ReconciliationSummaryPayload> & {
     runMetadata?: InternalReconciliationRunMetadata | ReconciliationRunMetadata | null
   }
+  const rawSummary = raw.summary as Partial<ReconciliationSummaryPayload['summary']> | undefined
 
   return {
     runId: typeof raw.runId === 'string' && raw.runId.length > 0 ? raw.runId : fallbackRunId,
     runMetadata: sanitizeRunMetadata(raw.runMetadata) ?? sanitizeRunMetadata(fallbackMetadata),
-    summary: raw.summary ?? {
-      total: 0,
-      statusCounts: {},
-      laneCounts: {},
-      passes: [],
-      pendingUiReview: [],
-      failures: [],
-      blocked: [],
-      notRecorded: [],
-      failureReasons: [],
-      blockedReasons: [],
+    summary: {
+      total: rawSummary?.total ?? 0,
+      statusCounts: rawSummary?.statusCounts ?? {},
+      laneCounts: rawSummary?.laneCounts ?? {},
+      passes: Array.isArray(rawSummary?.passes) ? rawSummary.passes : [],
+      pendingUiReview: Array.isArray(rawSummary?.pendingUiReview) ? rawSummary.pendingUiReview : [],
+      runtimePathValidations: Array.isArray(rawSummary?.runtimePathValidations)
+        ? rawSummary.runtimePathValidations
+        : [],
+      failures: Array.isArray(rawSummary?.failures) ? rawSummary.failures : [],
+      blocked: Array.isArray(rawSummary?.blocked) ? rawSummary.blocked : [],
+      notRecorded: Array.isArray(rawSummary?.notRecorded) ? rawSummary.notRecorded : [],
+      failureReasons: Array.isArray(rawSummary?.failureReasons) ? rawSummary.failureReasons : [],
+      blockedReasons: Array.isArray(rawSummary?.blockedReasons) ? rawSummary.blockedReasons : [],
     },
     rows: Array.isArray(raw.rows) ? raw.rows : [],
   }

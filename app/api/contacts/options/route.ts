@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
               accountTypeId: true,
               accountType: {
                 select: {
-                  name: true
+                  name: true,
+                  code: true
                 }
               }
             },
@@ -82,7 +83,8 @@ export async function GET(request: NextRequest) {
             label: account.accountName,
             accountNumber: account.accountNumber,
             accountTypeId: account.accountTypeId,
-            accountTypeName: account.accountType ? account.accountType.name : ""
+            accountTypeName: account.accountType ? account.accountType.name : "",
+            accountTypeCode: account.accountType ? account.accountType.code : ""
           })),
           contactMethods: [
             { value: "Email", label: "Email" },

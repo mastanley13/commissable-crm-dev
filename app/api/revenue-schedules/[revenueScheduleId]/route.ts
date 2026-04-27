@@ -311,6 +311,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { revenu
         return ""
       }
 
+      const splitFieldNames = ["houseSplitPercent", "houseRepSplitPercent", "subagentSplitPercent"] as const
+      const attemptedSplitEdit = splitFieldNames.some(field => Object.prototype.hasOwnProperty.call(payload, field))
+      if (attemptedSplitEdit) {
+        const message = "Revenue schedule split edits are disabled here. Update commission splits from the opportunity commission flow."
+        return NextResponse.json(
+          {
+            error: message,
+            errors: {
+              houseSplitPercent: message,
+              houseRepSplitPercent: message,
+              subagentSplitPercent: message
+            }
+          },
+          { status: 409 }
+        )
+      }
+
       const productId = (existing as any)?.product?.id as string | undefined
 
       if (typeof (payload as any)?.revenueScheduleName === "string") {

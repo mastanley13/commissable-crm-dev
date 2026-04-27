@@ -153,6 +153,51 @@ test("resolveMultiVendorTemplates skips summary vendor labels", async () => {
   assert.deepEqual(result.vendorsMissingTemplates, [])
 })
 
+test("resolveMultiVendorTemplates prefers exact accountName over accountLegalName alias collisions", async () => {
+  const mockDb: MultiVendorResolverDbClient = {
+    account: {
+      findMany: async () => [
+        { id: "acct-acc", accountName: "ACC Business", accountLegalName: "AT&T" },
+        { id: "acct-att", accountName: "AT&T", accountLegalName: "AT&T, Inc." },
+      ],
+    },
+    reconciliationTemplate: {
+      findMany: async () => [
+        {
+          id: "tmpl-acc",
+          name: "Template ACC",
+          vendorAccountId: "acct-acc",
+          updatedAt: new Date("2026-02-08T00:00:00.000Z"),
+          createdAt: new Date("2026-02-01T00:00:00.000Z"),
+          config: {},
+        },
+        {
+          id: "tmpl-att",
+          name: "Template ATT",
+          vendorAccountId: "acct-att",
+          updatedAt: new Date("2026-02-09T00:00:00.000Z"),
+          createdAt: new Date("2026-02-02T00:00:00.000Z"),
+          config: {},
+        },
+      ],
+    },
+  }
+
+  const result = await resolveMultiVendorTemplates({
+    db: mockDb,
+    tenantId: "tenant-1",
+    distributorAccountId: "dist-1",
+    vendorNamesInFile: ["AT&T", "ACC Business"],
+  })
+
+  assert.equal(result.templatesUsed.length, 2)
+  assert.equal(result.byVendorKey.get("at&t")?.vendorAccountId, "acct-att")
+  assert.equal(result.byVendorKey.get("at&t")?.vendorAccountName, "AT&T")
+  assert.equal(result.byVendorKey.get("at&t")?.templateId, "tmpl-att")
+  assert.equal(result.byVendorKey.get("acc business")?.vendorAccountId, "acct-acc")
+  assert.equal(result.byVendorKey.get("acc business")?.templateId, "tmpl-acc")
+})
+
 test("mergeMultiVendorTemplateConfigs merges mapping and telarus fields", () => {
   const merged = mergeMultiVendorTemplateConfigs([
     {

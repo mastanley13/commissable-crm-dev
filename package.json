@@ -10,6 +10,12 @@
         "start": "next start",
         "lint": "next lint",
         "test": "node --import tsx --test tests/*.test.ts",
+        "pw:test": "node scripts/playwright/run-playwright.cjs",
+        "pw:report": "node scripts/playwright/show-playwright-report.cjs",
+        "pw:recon:test": "node scripts/playwright/run-reconciliation-suite.cjs",
+        "pw:recon:report": "node scripts/playwright/show-reconciliation-report.cjs",
+        "pw:crosswalk": "node scripts/playwright/generate-reconciliation-crosswalk.cjs",
+        "pw:export:reconciliation": "node scripts/playwright/export-reconciliation-results.cjs",
         "db:generate": "prisma generate",
         "db:push": "prisma db push",
         "db:migrate": "prisma migrate dev",
@@ -47,6 +53,7 @@
         "xlsx": "^0.18.5"
     },
     "devDependencies": {
+        "@playwright/test": "^1.59.1",
         "@types/node": "^20.14.11",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",

@@ -53,6 +53,7 @@ import { VALIDATION_PATTERNS } from "@/lib/validation-shared"
 import { AuditHistoryTab } from "./audit-history-tab"
 import { TabDescription } from "@/components/section/TabDescription"
 import { isHouseAccountType } from "@/lib/account-type"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 
 export interface AccountAddress {
   line1: string
@@ -142,6 +143,7 @@ export interface AccountDetail {
   parentAccountId?: string | null
   accountType: string
   accountTypeId?: string | null
+  salesforceId?: string
   status?: AccountStatus
   active: boolean
   accountOwner?: string
@@ -200,6 +202,7 @@ interface AccountAddressForm {
 interface AccountInlineForm {
   accountName: string
   accountLegalName: string
+  salesforceId: string
   parentAccountId: string
   accountTypeId: string
   ownerId: string
@@ -319,6 +322,7 @@ function createAccountInlineForm(detail: AccountDetail | null | undefined): Acco
   return {
     accountName: detail.accountName ?? "",
     accountLegalName: detail.accountLegalName ?? "",
+    salesforceId: detail.salesforceId ?? "",
     parentAccountId: detail.parentAccountId ?? "",
     accountTypeId: detail.accountTypeId ?? "",
     ownerId: detail.ownerId ?? "",
@@ -344,6 +348,10 @@ function buildAccountPayload(patch: Partial<AccountInlineForm>, draft: AccountIn
   if ("accountLegalName" in patch) {
     const value = draft.accountLegalName.trim()
     payload.accountLegalName = value.length > 0 ? value : null
+  }
+
+  if ("salesforceId" in patch) {
+    payload.salesforceId = normalizeSalesforceIdInput(draft.salesforceId)
   }
 
   if ("parentAccountId" in patch) {
@@ -401,6 +409,11 @@ function validateAccountForm(form: AccountInlineForm, currentAccountId?: string)
 
   if (!form.accountTypeId.trim()) {
     errors.accountTypeId = "Account type is required."
+  }
+
+  const salesforceId = normalizeSalesforceIdInput(form.salesforceId)
+  if (salesforceId && !isValidSalesforceId(salesforceId)) {
+    errors.salesforceId = "Salesforce ID must be 15 or 18 alphanumeric characters."
   }
 
   if (currentAccountId && form.parentAccountId && form.parentAccountId === currentAccountId) {
@@ -967,6 +980,10 @@ function AccountHeader({
             value={<div className={fieldBoxClass}>{account.accountLegalName || ""}</div>}
           />
           <FieldRow
+            label="Salesforce ID"
+            value={<div className={fieldBoxClass}>{account.salesforceId || ""}</div>}
+          />
+          <FieldRow
             label="Parent Account"
             value={
               <div className={cn(fieldBoxClass, "justify-between")}>
@@ -1126,6 +1143,7 @@ function EditableAccountHeader({
 
   const accountNameField = editor.register("accountName")
   const accountLegalNameField = editor.register("accountLegalName")
+  const salesforceIdField = editor.register("salesforceId")
   const parentAccountField = editor.register("parentAccountId")
   const accountTypeField = editor.register("accountTypeId")
   const ownerField = editor.register("ownerId")
@@ -1262,6 +1280,17 @@ function EditableAccountHeader({
               onBlur={accountLegalNameField.onBlur}
               placeholder="Legal entity name"
             />
+          )}
+
+          {renderStandardRow(
+            "Salesforce ID",
+            <EditableField.Input
+              value={(salesforceIdField.value as string) ?? ""}
+              onChange={salesforceIdField.onChange}
+              onBlur={salesforceIdField.onBlur}
+              placeholder="001XXXXXXXXXXXXXXX"
+            />,
+            editor.errors.salesforceId
           )}
 
           {renderStandardRow(
@@ -5887,14 +5916,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
           onPermanentDelete={handleContactPermanentDelete}
           onRestore={handleContactRestore}
           userCanPermanentDelete={true}
-          disallowActiveDelete={
-            contactDeleteTargets.length > 0
-              ? contactDeleteTargets.some(contact => !!contact.active || !!contact.isPrimary)
-              : (!!contactToDelete?.active || !!contactToDelete?.isPrimary)
-          }
+          hideDeactivateAction
           modalSize="revenue-schedules"
           requireReason
-          note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+          note="Delete moves contacts to Archive directly. Contacts still cannot be deleted when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
         />
         {account && (
           <OpportunityCreateModal
@@ -6021,14 +6046,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
             return result.success ? { success: true } : { success: false, error: result.error }
           }}
           userCanPermanentDelete={false}
-          disallowActiveDelete={
-            activityDeleteTargets.length > 0
-              ? activityDeleteTargets.some(activity => !!activity.active)
-              : Boolean(activityToDelete?.active)
-          }
+          hideDeactivateAction
           modalSize="revenue-schedules"
           requireReason
-          note="Activities should be completed before they can be deleted. Use Deactivate to mark them Completed."
+          note="Delete removes the selected activities directly."
         />
 
         <OpportunityBulkOwnerModal
@@ -6171,9 +6192,10 @@ export function AccountDetailsView({ account, loading = false, error, onEdit, on
             }
           }}
           userCanPermanentDelete={false}
+          hideDeactivateAction
           modalSize="revenue-schedules"
           requireReason
-          note="Deactivation marks groups inactive. Delete permanently removes the group; if members are attached you may need Force Delete."
+          note="Delete removes the selected groups directly; if members are attached you may need Force Delete."
         />
         {/* Column Chooser Modals for each tab */}
         <ColumnChooserModal

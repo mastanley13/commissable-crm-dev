@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/db"
 import { withPermissions, createApiResponse } from "@/lib/api-auth"
+import { HistoricalDepositBucket } from "@prisma/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -77,8 +78,21 @@ export async function GET(request: NextRequest) {
         // Revenue & Finance
         prisma.revenueSchedule.count({ where: { tenantId, deletedAt: null } }),
         prisma.revenueSchedule.count({ where: { tenantId, deletedAt: null, status: "Unreconciled" } }),
-        prisma.deposit.count({ where: { tenantId } }),
-        prisma.depositLineItem.count({ where: { tenantId, status: "Unmatched" } }),
+        prisma.deposit.count({
+          where: {
+            tenantId,
+            historicalBucket: { not: HistoricalDepositBucket.SettledHistory }
+          }
+        }),
+        prisma.depositLineItem.count({
+          where: {
+            tenantId,
+            status: "Unmatched",
+            deposit: {
+              historicalBucket: { not: HistoricalDepositBucket.SettledHistory }
+            }
+          }
+        }),
         // Activity & Tasks
         prisma.ticket.count({ where: { tenantId, status: { in: ["Open", "InProgress"] } } }),
         prisma.ticket.count({ where: { tenantId, status: { in: ["Open", "InProgress"] }, priority: { in: ["High", "Urgent"] } } }),

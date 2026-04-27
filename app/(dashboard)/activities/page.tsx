@@ -490,9 +490,33 @@ export default function ActivitiesPage() {
     _bypassConstraints?: boolean,
     _reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const existingActivity = activities.find(activity => activity.id === activityId)
+    if (existingActivity?.active) {
+      try {
+        const response = await fetch(`/api/activities/${activityId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Completed" })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          return { success: false, error: payload?.error ?? "Failed to archive activity" }
+        }
+        setActivities(previous =>
+          previous.map(activity =>
+            activity.id === activityId ? { ...activity, active: false, status: "Completed" } : activity
+          )
+        )
+        showSuccess("Activity moved to Archive", "The activity was marked completed and can be reviewed from Archive.")
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : "Unable to archive activity" }
+      }
+    }
+
     const result = await deleteActivityRequest(activityId)
     return result.success ? { success: true } : { success: false, error: result.error }
-  }, [deleteActivityRequest])
+  }, [activities, deleteActivityRequest, showSuccess])
 
   const bulkDeleteActivitiesForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -503,14 +527,48 @@ export default function ActivitiesPage() {
       return { success: false, error: "No activities selected" }
     }
 
-    const ids = entities.map(entity => entity.id)
+    const activeEntities = entities.filter(entity => activities.find(activity => activity.id === entity.id)?.active)
+    const inactiveEntities = entities.filter(entity => !activities.find(activity => activity.id === entity.id)?.active)
+
+    const archiveResults = await Promise.allSettled(
+      activeEntities.map(async entity => {
+        const response = await fetch(`/api/activities/${entity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Completed" })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to archive activity")
+        }
+        return entity.id
+      })
+    )
+    const ids = inactiveEntities.map(entity => entity.id)
     const results = await Promise.allSettled(ids.map(id => deleteActivityRequest(id)))
 
     const successIds: string[] = []
     const failures: Array<{ id: string; name: string; message: string }> = []
+    const archivedIds: string[] = []
+
+    archiveResults.forEach((result, index) => {
+      const id = activeEntities[index]?.id
+      const name = activeEntities[index]?.name || id?.slice(0, 8) + "..."
+      if (!id) {
+        return
+      }
+      if (result.status === "fulfilled") {
+        archivedIds.push(id)
+        return
+      }
+      const message =
+        result.reason instanceof Error ? result.reason.message : "Failed to archive activity"
+      failures.push({ id, name, message })
+    })
+
     results.forEach((result, index) => {
       const id = ids[index]
-      const name = entities[index]?.name || id.slice(0, 8) + "..."
+      const name = inactiveEntities[index]?.name || id.slice(0, 8) + "..."
       if (result.status === "fulfilled" && result.value.success) {
         successIds.push(id)
         return
@@ -522,10 +580,25 @@ export default function ActivitiesPage() {
       failures.push({ id, name, message })
     })
 
+    if (archivedIds.length > 0) {
+      showSuccess(
+        `Archived ${archivedIds.length} activit${archivedIds.length === 1 ? "y" : "ies"}`,
+        "Active activities were marked completed and moved to Archive."
+      )
+      const archivedSet = new Set(archivedIds)
+      setActivities(previous =>
+        previous.map(activity =>
+          archivedSet.has(activity.id) ? { ...activity, active: false, status: "Completed" } : activity
+        )
+      )
+      setSelectedActivities(previous => previous.filter(id => !archivedIds.includes(id)))
+      await reloadActivities()
+    }
+
     if (successIds.length > 0) {
       showSuccess(
         `Deleted ${successIds.length} activit${successIds.length === 1 ? "y" : "ies"}`,
-        "The selected activities have been removed."
+        "The selected inactive activities have been removed."
       )
       setSelectedActivities(previous => previous.filter(id => !successIds.includes(id)))
       await reloadActivities()
@@ -538,8 +611,8 @@ export default function ActivitiesPage() {
       return { success: false, error: message }
     }
 
-    return { success: true }
-  }, [deleteActivityRequest, reloadActivities, showError, showSuccess])
+    return { success: archivedIds.length > 0 || successIds.length > 0 }
+  }, [activities, deleteActivityRequest, reloadActivities, showError, showSuccess])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedActivities.length === 0) {
@@ -885,10 +958,10 @@ export default function ActivitiesPage() {
           return result.success ? { success: true } : { success: false, error: result.error }
         }}
         userCanPermanentDelete={false}
-        disallowActiveDelete={activityDeleteTargets.some(activity => !!activity.active)}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Activities must be completed before they can be deleted. Use Action = Deactivate to mark them completed."
+        note="Delete archives active activities directly. Completed activities can then be permanently deleted from Archive."
       />
     </div>
   )

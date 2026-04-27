@@ -3928,10 +3928,10 @@ useEffect(() => {
         onPermanentDelete={handlePermanentDelete}
         onRestore={handleRestore}
         userCanPermanentDelete={true} // TODO: Check user permissions
-        disallowActiveDelete={Boolean(contact?.isPrimary)}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Contacts cannot be deleted while they are Active or Primary, or when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
+        note="Delete moves contacts to Archive directly. Contacts still cannot be deleted when they have related records (activities, opportunities, or group memberships). If constraints are detected, you'll see them listed and can only proceed with Force Delete (which may orphan related records)."
       />
 
       <TwoStageDeleteDialog
@@ -4020,9 +4020,10 @@ useEffect(() => {
         onPermanentDelete={handleGroupPermanentDelete}
         onRestore={handleGroupRestore}
         userCanPermanentDelete={false}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Deactivation marks groups inactive. Delete permanently removes the group; if members are attached you may need Force Delete."
+        note="Delete removes the selected groups directly; if members are attached you may need Force Delete."
       />
 
       {contact && (
@@ -4235,14 +4236,10 @@ useEffect(() => {
               return result.success ? { success: true } : { success: false, error: result.error }
             }}
             userCanPermanentDelete={false}
-            disallowActiveDelete={
-              activityDeleteTargets.length > 0
-                ? activityDeleteTargets.some(activity => !!activity.active)
-                : Boolean(activityToDelete?.active)
-            }
+            hideDeactivateAction
             modalSize="revenue-schedules"
             requireReason
-            note="Activities should be completed before they can be deleted. Use Deactivate to mark them Completed."
+            note="Delete removes the selected activities directly."
           />
           <OpportunityBulkOwnerModal
             isOpen={showOpportunityBulkOwnerModal}

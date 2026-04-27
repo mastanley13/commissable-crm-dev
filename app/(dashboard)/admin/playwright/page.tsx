@@ -20,10 +20,19 @@ type SearchParams = {
   status?: string | string[]
   lane?: string | string[]
   q?: string | string[]
+  page?: string | string[]
 }
+
+const DEFAULT_ROWS_PER_PAGE = 25
 
 function firstParam(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
+}
+
+function parsePage(value: string | string[] | undefined): number {
+  const raw = firstParam(value)
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -155,6 +164,32 @@ function buildCompareHref(runId: string, compare: string, status: string, lane: 
   return `/admin/playwright?${params.toString()}`
 }
 
+function buildPageHref(
+  runId: string,
+  page: number,
+  status: string,
+  lane: string,
+  q: string,
+  compare: string
+) {
+  const params = new URLSearchParams()
+  params.set('run', runId)
+  params.set('page', String(page))
+  if (compare) params.set('compare', compare)
+  if (status) params.set('status', status)
+  if (lane) params.set('lane', lane)
+  if (q) params.set('q', q)
+  return `/admin/playwright?${params.toString()}`
+}
+
+function buildSummaryHref(runId: string): string {
+  return `/admin/playwright/summary?run=${encodeURIComponent(runId)}`
+}
+
+function buildMarkdownExportHref(runId: string): string {
+  return `${getArtifactHref(runId, 'reconciliation-summary.md')}&download=1`
+}
+
 function isImageArtifact(artifactPath: string): boolean {
   return /\.(png|jpg|jpeg)$/i.test(artifactPath)
 }
@@ -234,6 +269,7 @@ export default async function AdminPlaywrightPage({
   const selectedStatus = firstParam(searchParams?.status)
   const selectedLane = firstParam(searchParams?.lane)
   const query = firstParam(searchParams?.q)
+  const requestedPage = parsePage(searchParams?.page)
 
   const { pointer, payload } = readReconciliationRunSummary(selectedRunId || undefined, 'full')
   const latestFull = getLatestReconciliationRunPointer('full')
@@ -266,6 +302,12 @@ export default async function AdminPlaywrightPage({
     lane: selectedLane,
     q: query,
   })
+  const totalFilteredRows = filteredRows.length
+  const totalPages = Math.max(Math.ceil(totalFilteredRows / DEFAULT_ROWS_PER_PAGE), 1)
+  const currentPage = Math.min(requestedPage, totalPages)
+  const pageStartIndex = (currentPage - 1) * DEFAULT_ROWS_PER_PAGE
+  const paginatedRows = filteredRows.slice(pageStartIndex, pageStartIndex + DEFAULT_ROWS_PER_PAGE)
+  const pageEndIndex = Math.min(pageStartIndex + paginatedRows.length, totalFilteredRows)
   const totalScenarios = payload.summary.total
   const notRecordedCount = payload.summary.statusCounts['not-recorded'] ?? 0
   const recordedCount = Math.max(totalScenarios - notRecordedCount, 0)
@@ -278,7 +320,6 @@ export default async function AdminPlaywrightPage({
       : null
 
   const artifactLinks = [
-    ['Summary (Markdown)', getArtifactHref(pointer.runId, 'reconciliation-summary.md')],
     ['Summary (JSON)', getArtifactHref(pointer.runId, 'reconciliation-summary.json')],
     ['Scenario CSV', getArtifactHref(pointer.runId, 'reconciliation-scenarios.csv')],
     ['Results JSON', getArtifactHref(pointer.runId, 'results.json')],
@@ -288,8 +329,8 @@ export default async function AdminPlaywrightPage({
   return (
     <div className="h-full overflow-auto">
       <div className="p-6">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
+        <div className="mb-8 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(640px,1.2fr)] xl:items-start">
+          <div className="min-w-0">
             <div className="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
               Playwright QA
             </div>
@@ -299,7 +340,7 @@ export default async function AdminPlaywrightPage({
             </p>
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm lg:w-[420px]">
+          <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm xl:min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-gray-900">Active run</span>
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${pointer.isFullSuiteRun ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
@@ -310,7 +351,7 @@ export default async function AdminPlaywrightPage({
                   : 'Partial run'}
               </span>
             </div>
-            <div className="mt-3 space-y-1">
+            <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
               <p><span className="font-medium text-gray-900">Run ID:</span> {pointer.runId}</p>
               <p><span className="font-medium text-gray-900">Finished:</span> {formatDate(payload.runMetadata?.finishedAt)}</p>
               <p><span className="font-medium text-gray-900">Coverage:</span> {recordedCount} of {totalScenarios} scenarios recorded ({coverage})</p>
@@ -318,6 +359,18 @@ export default async function AdminPlaywrightPage({
               <p><span className="font-medium text-gray-900">Environment:</span> {payload.runMetadata?.environmentLabel ?? 'Unknown'}</p>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href={buildSummaryHref(pointer.runId)}
+                className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100"
+              >
+                Summary
+              </Link>
+              <a
+                href={buildMarkdownExportHref(pointer.runId)}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                Export markdown
+              </a>
               {artifactLinks.map(([label, href]) => (
                 <a
                   key={label}
@@ -382,86 +435,7 @@ export default async function AdminPlaywrightPage({
           ))}
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[2fr,1fr]">
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-              <Link
-                href={`/admin/playwright${selectedRunId ? `?run=${encodeURIComponent(selectedRunId)}` : ''}${selectedCompareRunId ? `${selectedRunId ? '&' : '?'}compare=${encodeURIComponent(selectedCompareRunId)}` : ''}`}
-                className="text-sm font-semibold text-sky-700 hover:underline"
-              >
-                Clear filters
-              </Link>
-            </div>
-            <form className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <input type="hidden" name="run" value={selectedRunId || pointer.runId} />
-              <label className="text-sm text-gray-700">
-                <span className="mb-1 block font-medium">Compare to run</span>
-                <select
-                  name="compare"
-                  defaultValue={selectedCompareRunId}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
-                >
-                  <option value="">No comparison</option>
-                  {recentRuns
-                    .filter(run => run.runId !== (selectedRunId || pointer.runId))
-                    .map(run => (
-                      <option key={run.runId} value={run.runId}>
-                        {run.runId} {run.isFullSuiteRun ? '(full)' : '(partial)'}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="text-sm text-gray-700">
-                <span className="mb-1 block font-medium">Search</span>
-              <input
-                  name="q"
-                  defaultValue={query}
-                  placeholder="RS-068, TC-04, deposit id, flow id, blocked..."
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-sky-500"
-                />
-              </label>
-              <label className="text-sm text-gray-700">
-                <span className="mb-1 block font-medium">Status</span>
-                <select
-                  name="status"
-                  defaultValue={selectedStatus}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
-                >
-                  <option value="">All statuses</option>
-                  <option value="pass">Pass</option>
-                  <option value="pass-pending-ui-review">Pass-pending-ui-review</option>
-                  <option value="blocked">Blocked</option>
-                  <option value="fail">Fail</option>
-                  <option value="not-recorded">Not recorded</option>
-                </select>
-              </label>
-              <label className="text-sm text-gray-700">
-                <span className="mb-1 block font-medium">Lane</span>
-                <select
-                  name="lane"
-                  defaultValue={selectedLane}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
-                >
-                  <option value="">All lanes</option>
-                  <option value="deterministic">Deterministic</option>
-                  <option value="ui-review">UI review</option>
-                  <option value="needs-clarification">Needs clarification</option>
-                  <option value="known-bug">Known bug</option>
-                </select>
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  className="w-full rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
-                >
-                  Apply filters
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Run browser</h2>
             <p className="mt-1 text-sm text-gray-500">
               Full runs are reporting snapshots. Partial runs are targeted checks and should not drive sprint status.
@@ -469,7 +443,7 @@ export default async function AdminPlaywrightPage({
 
             <div className="mt-5">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Full runs</h3>
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 max-h-[340px] space-y-2 overflow-y-auto pr-1">
                 {recentFullRuns.map(run => {
                   const runTotal = run.scenarioCount ?? 0
                   const runNotRecorded = run.statusCounts['not-recorded'] ?? 0
@@ -481,7 +455,7 @@ export default async function AdminPlaywrightPage({
                   return (
                     <div
                       key={run.runId}
-                      className={`rounded-lg border px-3 py-3 ${
+                      className={`rounded-xl border px-3 py-3 ${
                         run.runId === pointer.runId
                           ? 'border-sky-300 bg-sky-50'
                           : isSelectedCompare
@@ -545,7 +519,7 @@ export default async function AdminPlaywrightPage({
 
             <div className="mt-5 border-t border-gray-200 pt-5">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Partial runs</h3>
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
                 {recentPartialRuns.map(run => {
                   const runTotal = run.scenarioCount ?? 0
                   const runNotRecorded = run.statusCounts['not-recorded'] ?? 0
@@ -556,7 +530,7 @@ export default async function AdminPlaywrightPage({
                   return (
                     <div
                       key={run.runId}
-                      className={`rounded-lg border px-3 py-3 ${
+                      className={`rounded-xl border px-3 py-3 ${
                         run.runId === pointer.runId
                           ? 'border-sky-300 bg-sky-50'
                           : isSelectedCompare
@@ -618,6 +592,88 @@ export default async function AdminPlaywrightPage({
               </div>
             </div>
           </div>
+
+        <div className="mb-6 mx-auto max-w-6xl rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Narrow the current run view or compare it against one of the selected demo runs.
+              </p>
+            </div>
+            <Link
+              href={`/admin/playwright${selectedRunId ? `?run=${encodeURIComponent(selectedRunId)}` : ''}${selectedCompareRunId ? `${selectedRunId ? '&' : '?'}compare=${encodeURIComponent(selectedCompareRunId)}` : ''}`}
+              className="text-sm font-semibold text-sky-700 hover:underline"
+            >
+              Clear filters
+            </Link>
+          </div>
+          <form className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.1fr_1.6fr_0.9fr_0.9fr_auto] xl:items-end">
+            <input type="hidden" name="run" value={selectedRunId || pointer.runId} />
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block font-medium">Compare to run</span>
+              <select
+                name="compare"
+                defaultValue={selectedCompareRunId}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
+              >
+                <option value="">No comparison</option>
+                {recentRuns
+                  .filter(run => run.runId !== (selectedRunId || pointer.runId))
+                  .map(run => (
+                    <option key={run.runId} value={run.runId}>
+                      {run.runId} {run.isFullSuiteRun ? '(full)' : '(partial)'}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block font-medium">Search</span>
+              <input
+                name="q"
+                defaultValue={query}
+                placeholder="RS-068, TC-04, deposit id, flow id, blocked..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none ring-0 transition focus:border-sky-500"
+              />
+            </label>
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block font-medium">Status</span>
+              <select
+                name="status"
+                defaultValue={selectedStatus}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
+              >
+                <option value="">All statuses</option>
+                <option value="pass">Pass</option>
+                <option value="pass-pending-ui-review">Pass-pending-ui-review</option>
+                <option value="blocked">Blocked</option>
+                <option value="fail">Fail</option>
+                <option value="not-recorded">Not recorded</option>
+              </select>
+            </label>
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block font-medium">Lane</span>
+              <select
+                name="lane"
+                defaultValue={selectedLane}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none transition focus:border-sky-500"
+              >
+                <option value="">All lanes</option>
+                <option value="deterministic">Deterministic</option>
+                <option value="ui-review">UI review</option>
+                <option value="needs-clarification">Needs clarification</option>
+                <option value="known-bug">Known bug</option>
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 xl:min-w-[160px]"
+              >
+                Apply filters
+              </button>
+            </div>
+          </form>
         </div>
 
         {compareSummary?.pointer && compareSummary.payload && comparison ? (
@@ -654,14 +710,20 @@ export default async function AdminPlaywrightPage({
         <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Ready for review</h2>
-            <div className="mt-4 space-y-3">
+            <p className="mt-1 text-sm text-gray-500">
+              Compact list of pass and pending-review rows you are most likely to discuss live.
+            </p>
+            <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto pr-1">
               {[...payload.summary.passes, ...payload.summary.pendingUiReview].slice(0, 8).map(row => (
-                <div key={row.scenarioId} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-3">
-                  <div className="flex items-center gap-2">
+                <div key={row.scenarioId} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${statusClasses(row.status)}`}>
                       {row.status}
                     </span>
                     <span className="font-semibold text-gray-900">{row.scenarioId}</span>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${laneClasses(row.lane)}`}>
+                      {row.lane}
+                    </span>
                   </div>
                   <p className="mt-2 text-sm text-gray-700">{row.title}</p>
                 </div>
@@ -674,9 +736,12 @@ export default async function AdminPlaywrightPage({
 
           <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Top blocked reasons</h2>
-            <div className="mt-4 space-y-3">
+            <p className="mt-1 text-sm text-gray-500">
+              Highest-signal blockers only, kept in a scrollable panel instead of extending the page.
+            </p>
+            <div className="mt-4 max-h-[420px] space-y-2 overflow-y-auto pr-1">
               {payload.summary.blockedReasons.slice(0, 5).map(reason => (
-                <div key={reason.reason} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-3">
+                <div key={reason.reason} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                   <div className="text-sm font-semibold text-gray-900">{reason.count} scenario(s)</div>
                   <p className="mt-1 text-sm text-gray-600">{reason.reason}</p>
                 </div>
@@ -694,18 +759,23 @@ export default async function AdminPlaywrightPage({
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Scenario rows</h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Showing {filteredRows.length} of {payload.rows.length} scenarios for run {pointer.runId}. Recorded {recordedCount}, not recorded {notRecordedCount}.
+                  Showing {totalFilteredRows === 0 ? 0 : pageStartIndex + 1}-{pageEndIndex} of {totalFilteredRows} filtered scenarios for run {pointer.runId}. Recorded {recordedCount}, not recorded {notRecordedCount}.
                 </p>
               </div>
-              <div className="text-xs text-gray-500">
-                HTML report command: <code className="rounded bg-gray-100 px-1 py-0.5">npm run pw:recon:report</code>
+              <div className="flex flex-col items-start gap-2 text-xs text-gray-500 lg:items-end">
+                <div>
+                  HTML report command: <code className="rounded bg-gray-100 px-1 py-0.5">npm run pw:recon:report</code>
+                </div>
+                <div>
+                  {DEFAULT_ROWS_PER_PAGE} rows per page
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[720px] overflow-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr>
                   {[
                     'Scenario',
@@ -727,7 +797,7 @@ export default async function AdminPlaywrightPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {filteredRows.map(row => {
+                {paginatedRows.map(row => {
                   const artifacts = splitArtifactPaths(row.artifactPaths).filter(artifactPath =>
                     resolveRunArtifactPath(pointer.runId, artifactPath)
                   )
@@ -845,6 +915,54 @@ export default async function AdminPlaywrightPage({
                 })}
               </tbody>
             </table>
+          </div>
+
+          <div className="border-t border-gray-200 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-gray-500">
+                Page {currentPage} of {totalPages}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {currentPage > 1 ? (
+                  <Link
+                    href={buildPageHref(
+                      selectedRunId || pointer.runId,
+                      currentPage - 1,
+                      selectedStatus,
+                      selectedLane,
+                      query,
+                      selectedCompareRunId
+                    )}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    Previous
+                  </Link>
+                ) : (
+                  <span className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-300">
+                    Previous
+                  </span>
+                )}
+                {currentPage < totalPages ? (
+                  <Link
+                    href={buildPageHref(
+                      selectedRunId || pointer.runId,
+                      currentPage + 1,
+                      selectedStatus,
+                      selectedLane,
+                      query,
+                      selectedCompareRunId
+                    )}
+                    className="rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+                  >
+                    Next 25
+                  </Link>
+                ) : (
+                  <span className="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-300">
+                    Next 25
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

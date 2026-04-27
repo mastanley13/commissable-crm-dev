@@ -6,12 +6,11 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 import {
+  computeRevenueScheduleSplitDisplay,
   computeRevenueScheduleMetricsFromDisplay,
   formatCurrencyUSD,
   formatSignedCurrencyDiff,
-  formatSignedPercentDiff,
-  isBlankDisplay,
-  parsePercentFractionDisplay
+  formatSignedPercentDiff
 } from "@/lib/revenue-schedule-math"
 import { RevenueScheduleSupportingDetails, type RevenueScheduleSupportingDetailsHandle } from "./revenue-schedule-supporting-details"
 import { useEntityEditor } from "@/hooks/useEntityEditor"
@@ -197,9 +196,6 @@ interface RevenueScheduleInlineForm {
   expectedUsageAdjustment: string
   expectedCommissionAdjustment: string
   expectedCommissionRatePercent?: string
-  houseSplitPercent?: string
-  houseRepSplitPercent?: string
-  subagentSplitPercent?: string
   comments: string
 }
 
@@ -214,9 +210,6 @@ function mapDetailToInline(detail: RevenueScheduleDetailRecord | null): RevenueS
     expectedUsageAdjustment: detail?.expectedUsageAdjustment ?? "",
     expectedCommissionAdjustment: detail?.expectedCommissionAdjustment ?? "",
     expectedCommissionRatePercent: detail?.expectedCommissionRatePercent ?? "",
-    houseSplitPercent: detail?.houseSplitPercent ?? "",
-    houseRepSplitPercent: detail?.houseRepSplitPercent ?? "",
-    subagentSplitPercent: detail?.subagentSplitPercent ?? "",
     comments: detail?.comments ?? ""
   }
 }
@@ -243,9 +236,6 @@ interface FinancialSummarySectionProps {
   expectedUsageAdjustmentField?: { value: unknown; onChange: any; onBlur: any } | null
   expectedCommissionAdjustmentField?: { value: unknown; onChange: any; onBlur: any } | null
   expectedRateField?: { value: unknown; onChange: any; onBlur: any } | null
-  houseSplitField?: { value: unknown; onChange: any; onBlur: any } | null
-  houseRepSplitField?: { value: unknown; onChange: any; onBlur: any } | null
-  subagentSplitField?: { value: unknown; onChange: any; onBlur: any } | null
 }
 
 function FinancialSummarySection({
@@ -257,10 +247,7 @@ function FinancialSummarySection({
   priceEachField,
   expectedUsageAdjustmentField,
   expectedCommissionAdjustmentField,
-  expectedRateField,
-  houseSplitField,
-  houseRepSplitField,
-  subagentSplitField
+  expectedRateField
 }: FinancialSummarySectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [splitMode, setSplitMode] = useState<"percent" | "amount">("percent")
@@ -323,56 +310,13 @@ function FinancialSummarySection({
       ? formatCurrencyUSD(metrics.expectedCommissionNet)
       : schedule.expectedCommissionNet ?? commissionExpectedDisplay
 
-  const splitsDisplay = (() => {
-    const housePercent = schedule.houseSplitPercent ?? null
-    const houseRepPercent = schedule.houseRepSplitPercent ?? null
-    const subagentPercent = schedule.subagentSplitPercent ?? null
-
-    if (splitMode === "percent") {
-      const houseFraction = parsePercentFractionDisplay(housePercent) ?? 0
-      const houseRepFraction = parsePercentFractionDisplay(houseRepPercent) ?? 0
-      const subagentFraction = parsePercentFractionDisplay(subagentPercent) ?? 0
-      const anySplitPresent =
-        !isBlankDisplay(schedule.houseSplitPercent) ||
-        !isBlankDisplay(schedule.houseRepSplitPercent) ||
-        !isBlankDisplay(schedule.subagentSplitPercent)
-      const totalFraction = anySplitPresent ? houseFraction + houseRepFraction + subagentFraction : null
-      const formattedTotal = totalFraction !== null ? `${(totalFraction * 100).toFixed(2)}%` : "--"
-      return {
-        house: housePercent,
-        houseRep: houseRepPercent,
-        subagent: subagentPercent,
-        total: formattedTotal
-      }
-    }
-
-    const totalCommission = metrics.actualCommission ?? metrics.expectedCommissionNet ?? null
-    if (totalCommission === null || totalCommission === 0) {
-      return {
-        house: schedule.houseSplitPercent ?? "--",
-        houseRep: schedule.houseRepSplitPercent ?? "--",
-        subagent: schedule.subagentSplitPercent ?? "--",
-        total: totalCommission === 0 ? formatCurrencyUSD(0) : "--"
-      }
-    }
-
-    const houseFraction = parsePercentFractionDisplay(schedule.houseSplitPercent) ?? 0
-    const houseRepFraction = parsePercentFractionDisplay(schedule.houseRepSplitPercent) ?? 0
-    const subagentFraction = parsePercentFractionDisplay(schedule.subagentSplitPercent) ?? 0
-
-    const houseAmount = totalCommission * houseFraction
-    const houseRepAmount = totalCommission * houseRepFraction
-    const subagentAmount = totalCommission * subagentFraction
-
-    const totalAmount = houseAmount + houseRepAmount + subagentAmount
-
-    return {
-      house: formatCurrencyUSD(houseAmount),
-      houseRep: formatCurrencyUSD(houseRepAmount),
-      subagent: formatCurrencyUSD(subagentAmount),
-      total: formatCurrencyUSD(totalAmount)
-    }
-  })()
+  const totalCommissionForSplits = metrics.actualCommission ?? metrics.expectedCommissionNet ?? null
+  const splitsDisplay = computeRevenueScheduleSplitDisplay({
+    houseSplitPercent: schedule.houseSplitPercent,
+    houseRepSplitPercent: schedule.houseRepSplitPercent,
+    subagentSplitPercent: schedule.subagentSplitPercent,
+    totalCommission: totalCommissionForSplits
+  })
 
   const usageDiffClass =
     metrics.usageDifference === null
@@ -617,67 +561,30 @@ function FinancialSummarySection({
               <div className={rowClass}>
                 <span className={labelClass}>{splitMode === "percent" ? "House Split %" : "House Split"}</span>
                 <span className={opClass}></span>
-                {enableInlineEditing && splitMode === "percent" && houseSplitField ? (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <EditableField.Input
-                      value={(houseSplitField.value as string) ?? ""}
-                      onChange={houseSplitField.onChange}
-                      onBlur={houseSplitField.onBlur}
-                      placeholder="20%"
-                      className={inputClass}
-                    />
-                    {errors?.houseSplitPercent ? (
-                      <span className="text-[10px] text-red-600">{errors.houseSplitPercent}</span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <span className={valueClass}>{renderValue(splitsDisplay.house)}</span>
-                )}
+                <span className={valueClass}>
+                  {renderValue(splitMode === "percent" ? splitsDisplay.housePercent : splitsDisplay.houseAmount)}
+                </span>
               </div>
               <div className={rowClass}>
                 <span className={labelClass}>{splitMode === "percent" ? "House Rep Split %" : "House Rep Split"}</span>
                 <span className={opClass}>+</span>
-                {enableInlineEditing && splitMode === "percent" && houseRepSplitField ? (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <EditableField.Input
-                      value={(houseRepSplitField.value as string) ?? ""}
-                      onChange={houseRepSplitField.onChange}
-                      onBlur={houseRepSplitField.onBlur}
-                      placeholder="30%"
-                      className={inputClass}
-                    />
-                    {errors?.houseRepSplitPercent ? (
-                      <span className="text-[10px] text-red-600">{errors.houseRepSplitPercent}</span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <span className={valueClass}>{renderValue(splitsDisplay.houseRep)}</span>
-                )}
+                <span className={valueClass}>
+                  {renderValue(splitMode === "percent" ? splitsDisplay.houseRepPercent : splitsDisplay.houseRepAmount)}
+                </span>
               </div>
               <div className={rowClass}>
                 <span className={labelClass}>{splitMode === "percent" ? "Subagent Split %" : "Subagent Split"}</span>
                 <span className={opClass}>+</span>
-                {enableInlineEditing && splitMode === "percent" && subagentSplitField ? (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <EditableField.Input
-                      value={(subagentSplitField.value as string) ?? ""}
-                      onChange={subagentSplitField.onChange}
-                      onBlur={subagentSplitField.onBlur}
-                      placeholder="50%"
-                      className={inputClass}
-                    />
-                    {errors?.subagentSplitPercent ? (
-                      <span className="text-[10px] text-red-600">{errors.subagentSplitPercent}</span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <span className={valueClass}>{renderValue(splitsDisplay.subagent)}</span>
-                )}
+                <span className={valueClass}>
+                  {renderValue(splitMode === "percent" ? splitsDisplay.subagentPercent : splitsDisplay.subagentAmount)}
+                </span>
               </div>
               <div className={cn(rowClass, "rounded bg-blue-50")}>
                 <span className={labelStrongClass}>{splitMode === "percent" ? "Total Split %" : "Total Split"}</span>
                 <span className={cn(opClass, "font-bold")}>=</span>
-                <span className={valueBoldClass}>{renderValue(splitsDisplay.total)}</span>
+                <span className={valueBoldClass}>
+                  {renderValue(splitMode === "percent" ? splitsDisplay.totalPercent : splitsDisplay.totalAmount)}
+                </span>
               </div>
               <div className={cn(rowClass, "border-t border-gray-300")}>
                 <span className={labelClass}>Expected Rate %</span>
@@ -828,36 +735,6 @@ export function RevenueScheduleDetailsView({
       }
     }
 
-    const splitInputs: Array<[keyof RevenueScheduleInlineForm, string | undefined]> = [
-      ["houseSplitPercent", draft.houseSplitPercent],
-      ["houseRepSplitPercent", draft.houseRepSplitPercent],
-      ["subagentSplitPercent", draft.subagentSplitPercent]
-    ]
-    const splitPercents = splitInputs.map(([key, value]) => {
-      if (typeof value !== "string" || value.trim().length === 0) return { key, value: null }
-      return { key, value: parsePercentInput(value) }
-    })
-
-    const anySplitTouched = splitInputs.some(([, value]) => typeof value === "string" && value.trim().length > 0)
-    if (anySplitTouched) {
-      for (const split of splitPercents) {
-        if (split.value === null) {
-          errors[String(split.key)] = "Enter a valid percent."
-          continue
-        }
-        if (split.value < 0 || split.value > 100) {
-          errors[String(split.key)] = "Split percent must be between 0 and 100."
-        }
-      }
-
-      const total = splitPercents.reduce((sum, item) => sum + (item.value ?? 0), 0)
-      if (Number.isFinite(total) && Math.abs(total - 100) > 0.01) {
-        const message = "Split total must equal 100%."
-        errors.houseSplitPercent = errors.houseSplitPercent ?? message
-        errors.houseRepSplitPercent = errors.houseRepSplitPercent ?? message
-        errors.subagentSplitPercent = errors.subagentSplitPercent ?? message
-      }
-    }
     return errors
   }, [])
 
@@ -875,9 +752,6 @@ export function RevenueScheduleDetailsView({
         expectedUsageAdjustment: draft.expectedUsageAdjustment?.trim(),
         expectedCommissionAdjustment: draft.expectedCommissionAdjustment?.trim(),
         expectedCommissionRatePercent: (draft as any).expectedCommissionRatePercent?.trim?.(),
-        houseSplitPercent: (draft as any).houseSplitPercent?.trim?.(),
-        houseRepSplitPercent: (draft as any).houseRepSplitPercent?.trim?.(),
-        subagentSplitPercent: (draft as any).subagentSplitPercent?.trim?.(),
         comments: draft.comments?.trim()
       }
       const response = await fetch(`/api/revenue-schedules/${schedule.id}`, {
@@ -918,9 +792,6 @@ export function RevenueScheduleDetailsView({
   const expectedUsageAdjustmentField = enableInlineEditing ? editor.register("expectedUsageAdjustment") : null
   const expectedCommissionAdjustmentField = enableInlineEditing ? editor.register("expectedCommissionAdjustment") : null
   const expectedRateField = enableInlineEditing ? editor.register("expectedCommissionRatePercent" as any) : null
-  const houseSplitField = enableInlineEditing ? editor.register("houseSplitPercent" as any) : null
-  const houseRepSplitField = enableInlineEditing ? editor.register("houseRepSplitPercent" as any) : null
-  const subagentSplitField = enableInlineEditing ? editor.register("subagentSplitPercent" as any) : null
   const commentsField = enableInlineEditing ? editor.register("comments") : null
   // derive display values from editor when enabled
   const baseScheduleName = schedule ? (schedule.revenueScheduleName ?? schedule.revenueSchedule ?? `Schedule #${schedule.id}`) : ""
@@ -1312,57 +1183,6 @@ export function RevenueScheduleDetailsView({
                     />
                   )
                 }
-                if (enableInlineEditing && field.fieldId === "04.01.017" && houseSplitField) {
-                  return (
-                    <EditRow
-                      key={`${field.fieldId}-${field.label}`}
-                      label="House Split %"
-                      control={
-                        <EditableField.Input
-                          value={(houseSplitField.value as string) ?? ""}
-                          onChange={houseSplitField.onChange}
-                          onBlur={houseSplitField.onBlur}
-                          placeholder="20%"
-                        />
-                      }
-                      error={editor.errors.houseSplitPercent}
-                    />
-                  )
-                }
-                if (enableInlineEditing && field.fieldId === "04.01.018" && houseRepSplitField) {
-                  return (
-                    <EditRow
-                      key={`${field.fieldId}-${field.label}`}
-                      label="House Rep Split %"
-                      control={
-                        <EditableField.Input
-                          value={(houseRepSplitField.value as string) ?? ""}
-                          onChange={houseRepSplitField.onChange}
-                          onBlur={houseRepSplitField.onBlur}
-                          placeholder="30%"
-                        />
-                      }
-                      error={editor.errors.houseRepSplitPercent}
-                    />
-                  )
-                }
-                if (enableInlineEditing && field.fieldId === "04.01.019" && subagentSplitField) {
-                  return (
-                    <EditRow
-                      key={`${field.fieldId}-${field.label}`}
-                      label="Subagent Split %"
-                      control={
-                        <EditableField.Input
-                          value={(subagentSplitField.value as string) ?? ""}
-                          onChange={subagentSplitField.onChange}
-                          onBlur={subagentSplitField.onBlur}
-                          placeholder="50%"
-                        />
-                      }
-                      error={editor.errors.subagentSplitPercent}
-                    />
-                  )
-                }
                 if (enableInlineEditing && field.fieldId === "comments" && commentsField) {
                   return (
                     <EditRow
@@ -1398,9 +1218,6 @@ export function RevenueScheduleDetailsView({
           expectedUsageAdjustmentField={expectedUsageAdjustmentField}
           expectedCommissionAdjustmentField={expectedCommissionAdjustmentField}
           expectedRateField={expectedRateField}
-          houseSplitField={houseSplitField}
-          houseRepSplitField={houseRepSplitField}
-          subagentSplitField={subagentSplitField}
         />
       ) : (
         <div className="border-y-2 border-blue-900 bg-blue-100 px-3 py-1.5">

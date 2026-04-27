@@ -733,6 +733,7 @@ export async function createFlexProductForUnknownLine(
     userId,
     depositId,
     lineItemId,
+    targetAccountId,
     varianceTolerance,
     attachOpportunityId,
     attachOpportunityProductId,
@@ -744,6 +745,7 @@ export async function createFlexProductForUnknownLine(
     userId: string
     depositId: string
     lineItemId: string
+    targetAccountId: string
     varianceTolerance: number
     attachOpportunityId?: string | null
     attachOpportunityProductId?: string | null
@@ -778,7 +780,7 @@ export async function createFlexProductForUnknownLine(
   const product = await createFlexProduct(tx, {
     tenantId,
     userId,
-    accountId: line.deposit.accountId,
+    accountId: targetAccountId,
     flexType: "FlexProduct",
     vendorAccountId: line.vendorAccountId ?? line.deposit.vendorAccountId ?? null,
     distributorAccountId: line.deposit.distributorAccountId ?? null,
@@ -808,7 +810,7 @@ export async function createFlexProductForUnknownLine(
 
   const schedule = await createFlexSchedule(tx, {
     tenantId,
-    accountId: line.deposit.accountId,
+    accountId: targetAccountId,
     opportunityId: attachOpportunityId ?? null,
     opportunityProductId: flexOpportunityProductId,
     distributorAccountId:

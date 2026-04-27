@@ -523,6 +523,24 @@ export default function GroupsPage() {
     _reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
     try {
+      const existingGroup = groups.find(group => group.id === groupId)
+      if (existingGroup?.active) {
+        const response = await fetch(`/api/groups/${groupId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: false })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          return { success: false, error: payload?.error ?? "Failed to archive group" }
+        }
+
+        setGroups(previous => previous.map(group => (group.id === groupId ? { ...group, active: false } : group)))
+        setSelectedGroupIds(previous => previous.filter(id => id !== groupId))
+        showSuccess("Group moved to Archive", "The group was marked inactive and can be restored from Archive.")
+        return { success: true }
+      }
+
       const url = `/api/groups/${groupId}${bypassConstraints ? "?force=true" : ""}`
       const response = await fetch(url, { method: "DELETE" })
       const payload = await response.json().catch(() => null)
@@ -546,7 +564,7 @@ export default function GroupsPage() {
       const message = error instanceof Error ? error.message : "Unable to delete group"
       return { success: false, error: message }
     }
-  }, [groups, mapGroupConstraints, reloadGroups])
+  }, [groups, mapGroupConstraints, reloadGroups, showSuccess])
 
   const bulkDeleteGroupsForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -560,8 +578,25 @@ export default function GroupsPage() {
     const constraints: DeletionConstraint[] = []
     const failures: Array<{ id: string; name: string; message: string }> = []
     const successIds: string[] = []
+    const archivedIds: string[] = []
 
     for (const entity of entities) {
+      const group = groups.find(item => item.id === entity.id)
+      if (group?.active) {
+        const response = await fetch(`/api/groups/${entity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ isActive: false })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          failures.push({ id: entity.id, name: entity.name, message: payload?.error ?? "Failed to archive group" })
+          continue
+        }
+        archivedIds.push(entity.id)
+        continue
+      }
+
       const result = await deleteGroupForDialog(entity.id, bypassConstraints, reason)
       if (result.success) {
         successIds.push(entity.id)
@@ -578,10 +613,20 @@ export default function GroupsPage() {
       return { success: false, constraints }
     }
 
+    if (archivedIds.length > 0) {
+      const archivedSet = new Set(archivedIds)
+      setGroups(previous => previous.map(group => (archivedSet.has(group.id) ? { ...group, active: false } : group)))
+      setSelectedGroupIds(previous => previous.filter(id => !archivedSet.has(id)))
+      showSuccess(
+        `Archived ${archivedIds.length} group${archivedIds.length === 1 ? "" : "s"}`,
+        "Active groups were marked inactive and moved to Archive."
+      )
+    }
+
     if (successIds.length > 0) {
       showSuccess(
         `Deleted ${successIds.length} group${successIds.length === 1 ? "" : "s"}`,
-        "The selected groups have been removed."
+        "The selected inactive groups have been removed."
       )
       setSelectedGroupIds(previous => previous.filter(id => !successIds.includes(id)))
       await reloadGroups()
@@ -594,8 +639,8 @@ export default function GroupsPage() {
       return { success: false, error: message }
     }
 
-    return { success: true }
-  }, [deleteGroupForDialog, reloadGroups, showError, showSuccess])
+    return { success: archivedIds.length > 0 || successIds.length > 0 }
+  }, [deleteGroupForDialog, groups, reloadGroups, showError, showSuccess])
 
   const handleBulkOwnerSubmit = useCallback(async (ownerId: string | null) => {
     if (selectedGroupIds.length === 0) {
@@ -869,9 +914,10 @@ export default function GroupsPage() {
           return result.success ? { success: true } : { success: false, error: result.error }
         }}
         userCanPermanentDelete={false}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Deactivation marks groups inactive. Delete permanently removes the group; if members are attached you may need Force Delete."
+        note="Delete archives active groups directly. Inactive groups can then be permanently deleted from Archive; if members are attached you may need Force Delete."
       />
     </div>
   )

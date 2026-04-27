@@ -147,6 +147,7 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
     reconcileViewPerm,
     mergePerm,
     dataSettingsManagePerm,
+    adminUsersReadPerm,
     accountsReadPerm,
     accountsManagePerm,
     contactsReadPerm,
@@ -178,6 +179,12 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
       where: { code: "admin.data_settings.manage" },
       update: {},
       create: { code: "admin.data_settings.manage", name: "Manage Data Settings", category: "Admin" },
+      select: { id: true },
+    }),
+    prisma.permission.upsert({
+      where: { code: "admin.users.read" },
+      update: {},
+      create: { code: "admin.users.read", name: "Read Admin Users", category: "Admin" },
       select: { id: true },
     }),
     prisma.permission.upsert({
@@ -241,6 +248,7 @@ async function seedTenantUserAndAccounts(prisma: any): Promise<IntegrationContex
           { permissionId: reconcileViewPerm.id },
           { permissionId: mergePerm.id },
           { permissionId: dataSettingsManagePerm.id },
+          { permissionId: adminUsersReadPerm.id },
           { permissionId: accountsReadPerm.id },
           { permissionId: accountsManagePerm.id },
           { permissionId: contactsReadPerm.id },

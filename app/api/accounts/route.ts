@@ -5,6 +5,7 @@ import { mapAccountToListRow, accountIncludeForList } from "./helpers"
 import { withPermissions, createErrorResponse } from "@/lib/api-auth"
 import { logAccountAudit } from "@/lib/audit"
 import { validateAccountData, createValidationErrorResponse, normalizeEmail, normalizeState, formatPhoneNumber, ensureActiveOwnerOrNull } from "@/lib/validation"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 import { revalidatePath } from "next/cache"
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic';
@@ -104,6 +105,18 @@ function buildStringOperator(operator: string, value: string) {
   return { contains: value, mode: "insensitive" as const }
 }
 
+function parseSalesforceIdForApi(value: unknown) {
+  const salesforceId = normalizeSalesforceIdInput(value)
+  if (salesforceId && !isValidSalesforceId(salesforceId)) {
+    return {
+      salesforceId: null,
+      error: "Salesforce ID must be a 15 or 18 character alphanumeric Salesforce ID."
+    }
+  }
+
+  return { salesforceId, error: null }
+}
+
 export async function GET(request: NextRequest) {
   return withPermissions(
     request,
@@ -139,6 +152,7 @@ export async function GET(request: NextRequest) {
             { accountName: queryFilter },
             { accountLegalName: queryFilter },
             { accountNumber: queryFilter },
+            { salesforceId: queryFilter },
             { owner: { is: { fullName: queryFilter } } },
             { parent: { is: { accountName: queryFilter } } },
             { industry: { is: { name: queryFilter } } },
@@ -190,6 +204,7 @@ export async function GET(request: NextRequest) {
                 "accountName",
                 "accountLegalName",
                 "accountNumber",
+                "salesforceId",
                 "accountType",
                 "accountOwner",
                 "parentAccount",
@@ -236,6 +251,11 @@ export async function GET(request: NextRequest) {
 
                 if (columnId === "accountNumber") {
                   andClauses.push({ accountNumber: stringOp })
+                  continue
+                }
+
+                if (columnId === "salesforceId") {
+                  andClauses.push({ salesforceId: stringOp })
                   continue
                 }
 
@@ -359,6 +379,7 @@ export async function GET(request: NextRequest) {
           if (normalizedSortBy === "accountname") return [{ accountName: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "accountlegalname") return [{ accountLegalName: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "accountnumber") return [{ accountNumber: sortDirection }, { id: "asc" }]
+          if (normalizedSortBy === "salesforceid") return [{ salesforceId: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "updatedat") return [{ updatedAt: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "createdat") return [{ createdAt: sortDirection }, { id: "asc" }]
           if (normalizedSortBy === "status" || normalizedSortBy === "accountstatus" || normalizedSortBy === "active") {
@@ -460,6 +481,16 @@ export async function POST(request: NextRequest) {
         
         const accountName = typeof payload.accountName === "string" ? payload.accountName.trim() : ""
         const accountTypeId = coerceOptionalId(payload.accountTypeId)
+        const parsedSalesforceId = parseSalesforceIdForApi(payload.salesforceId)
+        if (parsedSalesforceId.error) {
+          return NextResponse.json(
+            {
+              error: parsedSalesforceId.error,
+              errors: { salesforceId: parsedSalesforceId.error }
+            },
+            { status: 400 }
+          )
+        }
 
         const tenantId = req.user.tenantId
         const userId = req.user.id
@@ -573,6 +604,7 @@ export async function POST(request: NextRequest) {
             typeof payload.accountLegalName === "string" && payload.accountLegalName.trim().length > 0
               ? payload.accountLegalName.trim()
               : null,
+          salesforceId: parsedSalesforceId.salesforceId,
           status: isActive ? AccountStatus.Active : AccountStatus.Inactive,
           websiteUrl:
             typeof payload.websiteUrl === "string" && payload.websiteUrl.trim().length > 0
@@ -621,6 +653,7 @@ export async function POST(request: NextRequest) {
           {
             accountName: creation.account.accountName,
             accountLegalName: creation.account.accountLegalName,
+            salesforceId: creation.account.salesforceId,
             accountTypeId: creation.account.accountTypeId,
             status: creation.account.status,
             websiteUrl: creation.account.websiteUrl,
@@ -636,6 +669,23 @@ export async function POST(request: NextRequest) {
       } catch (error: any) {
         console.error("Failed to create account", error)
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const targetRaw = error?.meta?.target as unknown
+          const targetText = Array.isArray(targetRaw)
+            ? targetRaw.join(",")
+            : typeof targetRaw === "string"
+              ? targetRaw
+              : ""
+
+          if (targetText.includes("tenantId") && targetText.includes("salesforceId")) {
+            return NextResponse.json(
+              {
+                error: "Salesforce ID must be unique.",
+                errors: { salesforceId: "Salesforce ID must be unique." }
+              },
+              { status: 409 }
+            )
+          }
+
           return NextResponse.json({ error: "An account with this name already exists." }, { status: 409 })
         }
         const message = error?.message ?? "Failed to create account"

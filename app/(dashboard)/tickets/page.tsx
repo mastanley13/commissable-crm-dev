@@ -617,9 +617,31 @@ export default function TicketsPage() {
     _bypassConstraints?: boolean,
     _reason?: string
   ): Promise<{ success: boolean; constraints?: DeletionConstraint[]; error?: string }> => {
+    const existingTicket = tickets.find(ticket => ticket.id === ticketId)
+    if (existingTicket?.active) {
+      try {
+        const response = await fetch(`/api/tickets/${ticketId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: false })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          return { success: false, error: payload?.error ?? "Failed to archive ticket" }
+        }
+        setTickets(previous =>
+          previous.map(ticket => (ticket.id === ticketId ? { ...ticket, active: false } : ticket))
+        )
+        showSuccess("Ticket moved to Archive", "The ticket was marked inactive and can be reopened from Archive.")
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : "Unable to archive ticket" }
+      }
+    }
+
     const result = await deleteTicketRequest(ticketId)
     return result.success ? { success: true } : { success: false, error: result.error }
-  }, [deleteTicketRequest])
+  }, [deleteTicketRequest, showSuccess, tickets])
 
   const bulkDeleteTicketsForDialog = useCallback(async (
     entities: Array<{ id: string; name: string }>,
@@ -630,14 +652,48 @@ export default function TicketsPage() {
       return { success: false, error: "No tickets selected" }
     }
 
-    const ids = entities.map(entity => entity.id)
+    const activeEntities = entities.filter(entity => tickets.find(ticket => ticket.id === entity.id)?.active)
+    const inactiveEntities = entities.filter(entity => !tickets.find(ticket => ticket.id === entity.id)?.active)
+
+    const archiveResults = await Promise.allSettled(
+      activeEntities.map(async entity => {
+        const response = await fetch(`/api/tickets/${entity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: false })
+        })
+        const payload = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Failed to archive ticket")
+        }
+        return entity.id
+      })
+    )
+
+    const ids = inactiveEntities.map(entity => entity.id)
     const results = await Promise.allSettled(ids.map(id => deleteTicketRequest(id)))
 
     const successIds: string[] = []
     const failures: Array<{ id: string; name: string; message: string }> = []
+    const archivedIds: string[] = []
+
+    archiveResults.forEach((result, index) => {
+      const id = activeEntities[index]?.id
+      const name = activeEntities[index]?.name || id?.slice(0, 8) + "..."
+      if (!id) {
+        return
+      }
+      if (result.status === "fulfilled") {
+        archivedIds.push(id)
+        return
+      }
+      const message = result.reason instanceof Error ? result.reason.message : "Failed to archive ticket"
+      failures.push({ id, name, message })
+    })
+
     results.forEach((result, index) => {
       const id = ids[index]
-      const name = entities[index]?.name || id.slice(0, 8) + "..."
+      const name = inactiveEntities[index]?.name || id.slice(0, 8) + "..."
       if (result.status === "fulfilled" && result.value.success) {
         successIds.push(id)
         return
@@ -649,10 +705,21 @@ export default function TicketsPage() {
       failures.push({ id, name, message })
     })
 
+    if (archivedIds.length > 0) {
+      const archivedSet = new Set(archivedIds)
+      setTickets(previous =>
+        previous.map(ticket => (archivedSet.has(ticket.id) ? { ...ticket, active: false } : ticket))
+      )
+      showSuccess(
+        `Archived ${archivedIds.length} ticket${archivedIds.length === 1 ? "" : "s"}`,
+        "Active tickets were marked inactive and moved to Archive."
+      )
+    }
+
     if (successIds.length > 0) {
       showSuccess(
         `Deleted ${successIds.length} ticket${successIds.length === 1 ? "" : "s"}`,
-        "The selected tickets have been removed."
+        "The selected inactive tickets have been removed."
       )
       setSelectedTickets(previous => previous.filter(id => !successIds.includes(id)))
       await reloadTickets()
@@ -665,8 +732,8 @@ export default function TicketsPage() {
       return { success: false, error: message }
     }
 
-    return { success: true }
-  }, [deleteTicketRequest, reloadTickets, showError, showSuccess])
+    return { success: archivedIds.length > 0 || successIds.length > 0 }
+  }, [deleteTicketRequest, reloadTickets, showError, showSuccess, tickets])
 
   const handleBulkReassign = useCallback(() => {
     if (selectedTickets.length === 0) {
@@ -997,10 +1064,10 @@ export default function TicketsPage() {
           return result.success ? { success: true } : { success: false, error: result.error }
         }}
         userCanPermanentDelete={false}
-        disallowActiveDelete={ticketDeleteTargets.some(ticket => !!ticket.active)}
+        hideDeactivateAction
         modalSize="revenue-schedules"
         requireReason
-        note="Tickets must be inactive before they can be deleted. Use Action = Deactivate to mark them inactive."
+        note="Delete archives active tickets directly. Inactive tickets can then be permanently deleted from Archive."
       />
     </div>
   )

@@ -33,7 +33,7 @@ const SECTIONS: Section[] = [
     id: "imports",
     title: "Imports",
     icon: Upload,
-    description: "Upload CSV files for Accounts, Contacts, Opportunities, and more."
+    description: "Upload CSV or Excel files for Accounts, Contacts, Opportunities, and more."
   },
   {
     id: "merges",
@@ -99,6 +99,57 @@ const COUNT_FORMATTER = new Intl.NumberFormat()
 
 function formatCount(value: number | null | undefined) {
   return COUNT_FORMATTER.format(value ?? 0)
+}
+
+function hasNamedDraftChanges(
+  draft:
+    | {
+        name: string
+        code: string
+        description: string
+      }
+    | undefined,
+  current: {
+    name: string
+    code?: string | null
+    description?: string | null
+  }
+) {
+  if (!draft) {
+    return false
+  }
+
+  const name = draft.name.trim()
+  const code = draft.code.trim()
+  const description = draft.description.trim()
+
+  return (
+    name !== current.name ||
+    (code.length > 0 && code !== (current.code ?? "")) ||
+    description !== (current.description ?? "")
+  )
+}
+
+function hasLabeledDraftChanges(
+  draft:
+    | {
+        label: string
+        description: string
+      }
+    | undefined,
+  current: {
+    label: string
+    description?: string | null
+  }
+) {
+  if (!draft) {
+    return false
+  }
+
+  return (
+    draft.label.trim() !== current.label ||
+    draft.description.trim() !== (current.description ?? "")
+  )
 }
 
 type FieldId =
@@ -183,6 +234,15 @@ const FIELD_CATEGORIES: { id: FieldCategoryId; label: string; description: strin
 
 const FIELD_TABLE_MAX_BODY_HEIGHT = 470
 const FIELD_TABLE_PAGE_SIZE = 10
+const FIELD_TABLE_SCROLL_AREA_STYLE = {
+  maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+  minHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
+  scrollbarGutter: "stable"
+} as const
+const SECTION_SCROLL_STYLE = { scrollbarGutter: "stable" } as const
+const FIELD_ACTION_COLUMN_WIDTH = "118px"
+const INLINE_SAVE_BUTTON_CLASS =
+  "inline-flex min-w-[56px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
 
 export default function DataSettingsPage() {
   const { user, isLoading, hasPermission } = useAuth()
@@ -253,8 +313,8 @@ export default function DataSettingsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-1">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-1 min-h-0">
         {/* Left navigation (mirrors Settings layout) */}
         <aside className="w-72 border-r border-gray-200 bg-white p-3">
           <div className="mb-4 flex items-center space-x-2">
@@ -291,7 +351,10 @@ export default function DataSettingsPage() {
         </aside>
 
         {/* Section content */}
-        <main className="flex-1 min-h-0 overflow-y-auto p-4">
+        <main
+          className="flex-1 min-h-0 overflow-y-auto p-4 pb-8"
+          style={SECTION_SCROLL_STYLE}
+        >
           {renderSection()}
         </main>
       </div>
@@ -567,10 +630,6 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
   }, [editMode, drafts])
 
   const handleRequestDelete = (subtype: ProductSubtypeType) => {
-    if (subtype.isSystem) {
-      return
-    }
-
     if ((subtype.usageCount ?? 0) > 0) {
       setError(
         "Product subtypes that are currently used by products cannot be deleted."
@@ -662,17 +721,14 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{
-            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
-            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
-          }}
+          style={FIELD_TABLE_SCROLL_AREA_STYLE}
         >
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
-                  style={{ width: "6%" }}
+                  style={{ width: FIELD_ACTION_COLUMN_WIDTH }}
                 >
                   Actions
                 </th>
@@ -733,25 +789,41 @@ function ProductSubtypeSettings({ editMode }: { editMode: boolean }) {
                   <tr key={subtype.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center gap-2">
-                        {!subtype.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(subtype)}
-                            disabled={
-                              deletingId === subtype.id ||
-                              bulkSaving ||
-                              (subtype.usageCount ?? 0) > 0
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              (subtype.usageCount ?? 0) > 0
-                                ? "Cannot delete a product subtype that is used by products"
-                                : "Delete this product subtype"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleUpdate(subtype)}
+                          disabled={
+                            !editMode ||
+                            savingId === subtype.id ||
+                            bulkSaving ||
+                            !hasNamedDraftChanges(drafts[subtype.id], subtype)
+                          }
+                          aria-hidden={!editMode}
+                          tabIndex={editMode ? 0 : -1}
+                          className={`${INLINE_SAVE_BUTTON_CLASS} ${
+                            editMode ? "visible" : "invisible"
+                          }`}
+                          title="Save this product subtype"
+                        >
+                          {savingId === subtype.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDelete(subtype)}
+                          disabled={
+                            deletingId === subtype.id ||
+                            bulkSaving ||
+                            (subtype.usageCount ?? 0) > 0
+                          }
+                          className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            (subtype.usageCount ?? 0) > 0
+                              ? "Cannot delete a product subtype that is used by products"
+                              : "Delete this product subtype"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top">
@@ -1031,7 +1103,7 @@ function ManageFieldsSection() {
         <button
           type="button"
           onClick={() => setEditMode(prev => !prev)}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          className="inline-flex min-w-[110px] items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
         >
           {editMode ? "Done Editing" : "Edit Values"}
         </button>
@@ -1410,10 +1482,6 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
   }, [editMode, drafts])
 
   const handleRequestDelete = (family: ProductFamilyType) => {
-    if (family.isSystem) {
-      return
-    }
-
     if ((family.subtypeCount ?? 0) > 0) {
       setError(
         "Product families that still have product subtypes cannot be deleted. Remove or reassign those subtypes first."
@@ -1519,17 +1587,14 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{
-            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
-            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
-          }}
+          style={FIELD_TABLE_SCROLL_AREA_STYLE}
         >
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
-                  style={{ width: "6%" }}
+                  style={{ width: FIELD_ACTION_COLUMN_WIDTH }}
                 >
                   Actions
                 </th>
@@ -1590,28 +1655,44 @@ function ProductFamilySettings({ editMode }: { editMode: boolean }) {
                   <tr key={family.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center gap-2">
-                        {!family.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(family)}
-                            disabled={
-                              deletingId === family.id ||
-                              bulkSaving ||
-                              (family.subtypeCount ?? 0) > 0 ||
-                              (family.usageCount ?? 0) > 0
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              (family.subtypeCount ?? 0) > 0
-                                ? "Cannot delete a product family that still has product subtypes"
-                                : (family.usageCount ?? 0) > 0
-                                ? "Cannot delete a product family that is used by products"
-                                : "Delete this product family"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleUpdate(family)}
+                          disabled={
+                            !editMode ||
+                            savingId === family.id ||
+                            bulkSaving ||
+                            !hasNamedDraftChanges(drafts[family.id], family)
+                          }
+                          aria-hidden={!editMode}
+                          tabIndex={editMode ? 0 : -1}
+                          className={`${INLINE_SAVE_BUTTON_CLASS} ${
+                            editMode ? "visible" : "invisible"
+                          }`}
+                          title="Save this product family"
+                        >
+                          {savingId === family.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDelete(family)}
+                          disabled={
+                            deletingId === family.id ||
+                            bulkSaving ||
+                            (family.subtypeCount ?? 0) > 0 ||
+                            (family.usageCount ?? 0) > 0
+                          }
+                          className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            (family.subtypeCount ?? 0) > 0
+                              ? "Cannot delete a product family that still has product subtypes"
+                              : (family.usageCount ?? 0) > 0
+                              ? "Cannot delete a product family that is used by products"
+                              : "Delete this product family"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top">
@@ -2122,10 +2203,6 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
   }, [editMode, drafts])
 
   const handleRequestDelete = (item: AccountTypeSetting) => {
-    if (item.isSystem) {
-      return
-    }
-
     if ((item.usageCount ?? 0) > 0) {
       setError(
         "Account types that are in use on accounts or contacts cannot be deleted."
@@ -2222,17 +2299,14 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
       <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
         <div
           className="overflow-y-auto"
-          style={{
-            maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
-            minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
-          }}
+          style={FIELD_TABLE_SCROLL_AREA_STYLE}
         >
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
-                  style={{ width: "6%" }}
+                  style={{ width: FIELD_ACTION_COLUMN_WIDTH }}
                 >
                   Actions
                 </th>
@@ -2293,25 +2367,41 @@ function AccountTypeSettings({ editMode }: { editMode: boolean }) {
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center gap-2">
-                        {!item.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(item)}
-                            disabled={
-                              deletingId === item.id ||
-                              (item.usageCount ?? 0) > 0 ||
-                              bulkSaving
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              (item.usageCount ?? 0) > 0
-                                ? "Cannot delete an account type that is in use"
-                                : "Delete this account type"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleUpdate(item)}
+                          disabled={
+                            !editMode ||
+                            savingId === item.id ||
+                            bulkSaving ||
+                            !hasNamedDraftChanges(drafts[item.id], item)
+                          }
+                          aria-hidden={!editMode}
+                          tabIndex={editMode ? 0 : -1}
+                          className={`${INLINE_SAVE_BUTTON_CLASS} ${
+                            editMode ? "visible" : "invisible"
+                          }`}
+                          title="Save this account type"
+                        >
+                          {savingId === item.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDelete(item)}
+                          disabled={
+                            deletingId === item.id ||
+                            (item.usageCount ?? 0) > 0 ||
+                            bulkSaving
+                          }
+                          className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            (item.usageCount ?? 0) > 0
+                              ? "Cannot delete an account type that is in use"
+                              : "Delete this account type"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top">
@@ -2807,10 +2897,6 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
   }, [editMode, drafts])
 
   const handleRequestDelete = (item: RevenueTypeSetting) => {
-    if (item.isSystem) {
-      return
-    }
-
     if ((item.usageCount ?? 0) > 0) {
       setError(
         "Revenue types that are currently used by products cannot be deleted."
@@ -2908,17 +2994,14 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
         <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
           <div
             className="overflow-y-auto"
-            style={{
-              maxHeight: FIELD_TABLE_MAX_BODY_HEIGHT,
-              minHeight: FIELD_TABLE_MAX_BODY_HEIGHT
-            }}
+            style={FIELD_TABLE_SCROLL_AREA_STYLE}
         >
           <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th
                   className="px-4 py-2 text-left font-medium text-gray-700 whitespace-nowrap"
-                  style={{ width: "6%" }}
+                  style={{ width: FIELD_ACTION_COLUMN_WIDTH }}
                 >
                   Actions
                 </th>
@@ -2979,25 +3062,41 @@ function RevenueTypeSettings({ editMode }: { editMode: boolean }) {
                   <tr key={item.code} className="hover:bg-gray-50">
                     <td className="px-4 py-2 align-top">
                       <div className="flex items-center gap-2">
-                        {!item.isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleRequestDelete(item)}
-                            disabled={
-                              deletingCode === item.code ||
-                              bulkSaving ||
-                              (item.usageCount ?? 0) > 0
-                            }
-                            className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              (item.usageCount ?? 0) > 0
-                                ? "Cannot delete a revenue type that is used by products"
-                                : "Delete this revenue type"
-                            }
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleUpdate(item)}
+                          disabled={
+                            !editMode ||
+                            savingCode === item.code ||
+                            bulkSaving ||
+                            !hasLabeledDraftChanges(drafts[item.code], item)
+                          }
+                          aria-hidden={!editMode}
+                          tabIndex={editMode ? 0 : -1}
+                          className={`${INLINE_SAVE_BUTTON_CLASS} ${
+                            editMode ? "visible" : "invisible"
+                          }`}
+                          title="Save this revenue type"
+                        >
+                          {savingCode === item.code ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRequestDelete(item)}
+                          disabled={
+                            deletingCode === item.code ||
+                            bulkSaving ||
+                            (item.usageCount ?? 0) > 0
+                          }
+                          className="inline-flex items-center rounded-full border border-red-200 bg-red-50 p-1 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title={
+                            (item.usageCount ?? 0) > 0
+                              ? "Cannot delete a revenue type that is used by products"
+                              : "Delete this revenue type"
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                     <td className="px-4 py-2 align-top">

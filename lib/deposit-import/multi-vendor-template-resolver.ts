@@ -253,20 +253,21 @@ export async function resolveMultiVendorTemplates(params: {
     orderBy: [{ accountName: "asc" }, { id: "asc" }],
   })
 
-  const accountByVendorNameKey = new Map<string, { id: string; accountName: string }>()
+  const accountByExactNameKey = new Map<string, { id: string; accountName: string }>()
+  const accountByLegalNameKey = new Map<string, { id: string; accountName: string }>()
   for (const account of vendorAccounts) {
     const accountName = normalizeString(account.accountName)
     const accountLegalName = normalizeString(account.accountLegalName)
     if (accountName) {
       const key = normalizeVendorKey(accountName)
-      if (!accountByVendorNameKey.has(key)) {
-        accountByVendorNameKey.set(key, { id: account.id, accountName: accountName })
+      if (!accountByExactNameKey.has(key)) {
+        accountByExactNameKey.set(key, { id: account.id, accountName: accountName })
       }
     }
     if (accountLegalName) {
       const key = normalizeVendorKey(accountLegalName)
-      if (!accountByVendorNameKey.has(key)) {
-        accountByVendorNameKey.set(key, {
+      if (!accountByLegalNameKey.has(key)) {
+        accountByLegalNameKey.set(key, {
           id: account.id,
           accountName: accountName ?? accountLegalName,
         })
@@ -277,7 +278,7 @@ export async function resolveMultiVendorTemplates(params: {
   const missingVendors: string[] = []
   const vendorAccountByKey = new Map<string, { id: string; accountName: string }>()
   for (const [vendorKey, vendorName] of vendorNameByKey.entries()) {
-    const account = accountByVendorNameKey.get(vendorKey)
+    const account = accountByExactNameKey.get(vendorKey) ?? accountByLegalNameKey.get(vendorKey)
     if (!account) {
       missingVendors.push(vendorName)
       continue

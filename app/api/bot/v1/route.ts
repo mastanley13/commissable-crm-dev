@@ -14,7 +14,11 @@ export async function GET() {
       contentType: "application/json",
     },
     docs: {
-      openapiFile: "docs/openapi/openclaw-bot-v1.openapi.yaml",
+      recommendedReadOnlyManifestPath: "/api/bot/v1/tools/manifest",
+      recommendedCapabilityRegistryPath: "/api/bot/v1/tools/capabilities",
+      recommendedCapabilityResolverPath: "/api/bot/v1/tools/capabilities/resolve",
+      legacyOpenApiFile: "docs/openapi/openclaw-bot-v1.openapi.yaml",
+      note: "Production/client-facing OpenClaw v1 should use the read-only /api/bot/v1/tools surface instead of the legacy mixed /api/bot/v1 route map.",
     },
   })
 }
