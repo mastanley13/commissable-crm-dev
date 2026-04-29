@@ -185,6 +185,54 @@ function formatImportErrorLine(error: ImportError) {
     : `Row ${error.rowNumber}: ${error.message}`
 }
 
+function mapPreviewRowByField(row: Record<string, string>, mapping: FieldMapping): Record<string, string> {
+  const next: Record<string, string> = {}
+  for (const [header, fieldId] of Object.entries(mapping)) {
+    if (!fieldId) {
+      continue
+    }
+    next[fieldId] = row[header]?.trim() ?? ""
+  }
+  return next
+}
+
+function firstNonBlank(...values: Array<string | undefined>) {
+  return values.find(value => value && value.trim().length > 0)?.trim() ?? ""
+}
+
+function formatRowCount(count: number) {
+  return `${count} ${count === 1 ? "row" : "rows"}`
+}
+
+function buildIssueRowLabel(values: Record<string, string>) {
+  const contactName = [values.firstName, values.lastName]
+    .map(value => value?.trim() ?? "")
+    .filter(Boolean)
+    .join(" ")
+  const accountName = firstNonBlank(
+    values.accountName,
+    values.accountNameRaw,
+    values.customerName,
+    values.vendorAccountName,
+    values.distributorAccountName
+  )
+
+  return {
+    contactName,
+    accountName,
+    recordName: firstNonBlank(
+      contactName,
+      accountName,
+      values.name,
+      values.opportunityName,
+      values.productNameHouse,
+      values.productCode,
+      values.sourceTransactionKey,
+      values.sourceDepositKey
+    )
+  }
+}
+
 export function DataSettingsImportsSection() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -268,19 +316,41 @@ export function DataSettingsImportsSection() {
           return null
         }
 
-        const missingCount = rowObjects.reduce((count, row) => {
+        const missingRows = rowObjects.flatMap((row, rowIndex) => {
           const value = row[mappedHeader] ?? ""
-          return value.trim().length === 0 ? count + 1 : count
-        }, 0)
+          if (value.trim().length > 0) {
+            return []
+          }
+          const values = mapPreviewRowByField(row, fieldMapping)
+          return [
+            {
+              rowNumber: rowIndex + 2,
+              ...buildIssueRowLabel(values)
+            }
+          ]
+        })
 
-        if (missingCount === 0) {
+        if (missingRows.length === 0) {
           return null
         }
 
-        return `${field.label}: ${missingCount} row(s) are blank`
+        return {
+          fieldId: field.id,
+          fieldLabel: field.label,
+          missingRows
+        }
       })
-      .filter((message): message is string => Boolean(message))
-  }, [requiredColumnsByField, requiredFields, rowObjects])
+      .filter((warning): warning is {
+        fieldId: string
+        fieldLabel: string
+        missingRows: Array<{
+          rowNumber: number
+          contactName: string
+          accountName: string
+          recordName: string
+        }>
+      } => Boolean(warning))
+  }, [fieldMapping, requiredColumnsByField, requiredFields, rowObjects])
 
   const depositTransactionConfigValid = useMemo(() => {
     if (!isDepositTransactionsEntity) {
@@ -1188,12 +1258,46 @@ export function DataSettingsImportsSection() {
 
             {requiredValueWarnings.length > 0 && (
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                <p className="font-medium">Required field blanks detected:</p>
+                <p className="font-medium">Some required information is missing.</p>
+                <p className="mt-1">
+                  These rows cannot be imported until the blank required values are filled in.
+                </p>
                 <ul className="mt-1 space-y-1">
-                  {requiredValueWarnings.map(message => (
-                    <li key={message}>{message}</li>
+                  {requiredValueWarnings.map(warning => (
+                    <li key={warning.fieldId}>
+                      {warning.fieldLabel} is blank in {formatRowCount(warning.missingRows.length)}.
+                    </li>
                   ))}
                 </ul>
+                <details className="mt-2 rounded-md border border-amber-200 bg-white/60 px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-semibold text-amber-800">
+                    Show affected rows
+                  </summary>
+                  <div className="mt-2 max-h-48 overflow-auto rounded-md border border-amber-100 bg-white">
+                    <table className="min-w-full divide-y divide-amber-100 text-xs">
+                      <thead className="bg-amber-50 text-amber-900">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Missing Field</th>
+                          <th className="px-3 py-2 text-left font-medium">Row</th>
+                          <th className="px-3 py-2 text-left font-medium">First/Last Name</th>
+                          <th className="px-3 py-2 text-left font-medium">Account Name</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-amber-100 text-amber-800">
+                        {requiredValueWarnings.flatMap(warning =>
+                          warning.missingRows.map(row => (
+                            <tr key={`${warning.fieldId}-${row.rowNumber}`}>
+                              <td className="px-3 py-2">{warning.fieldLabel}</td>
+                              <td className="px-3 py-2 tabular-nums">Row {row.rowNumber}</td>
+                              <td className="px-3 py-2">{row.contactName || row.recordName || "Not provided"}</td>
+                              <td className="px-3 py-2">{row.accountName || "Not provided"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
               </div>
             )}
 

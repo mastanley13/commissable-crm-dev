@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
-import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive, FlaskConical } from 'lucide-react'
+import { Shield, Users, Settings, Key, Database, UserCheck, Beaker, Shuffle, Archive, FlaskConical, BookOpen } from 'lucide-react'
 import { AdminSystemOverview } from '@/components/admin-system-overview'
 
 const adminSections = [
@@ -33,6 +33,13 @@ const adminSections = [
     href: '/settings',
     icon: Settings,
     color: 'bg-gray-500'
+  },
+  {
+    title: 'Resources',
+    description: 'Open the Resource Center guides and quick references',
+    href: '/resources',
+    icon: BookOpen,
+    color: 'bg-sky-600'
   },
   {
     title: 'Data Settings',

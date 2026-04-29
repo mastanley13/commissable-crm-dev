@@ -1,7 +1,8 @@
 import { expect, type Page } from '@playwright/test'
 
 function requireEnv(name: 'PLAYWRIGHT_EMAIL' | 'PLAYWRIGHT_PASSWORD'): string {
-  const value = process.env[name]
+  const rawValue = process.env[name]
+  const value = rawValue?.trim().replace(/^(['"])(.*)\1$/, '$2')
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`)
   }

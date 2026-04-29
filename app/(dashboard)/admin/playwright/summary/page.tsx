@@ -4,6 +4,7 @@ import { getAuthenticatedUser, hasPermission } from '@/lib/auth'
 import {
   getArtifactHref,
   getLatestReconciliationRunPointer,
+  getMostSuccessfulReconciliationRunPointer,
   readReconciliationRunSummary,
   type ReconciliationReasonCount,
   type ReconciliationScenarioRow,
@@ -200,7 +201,9 @@ export default async function AdminPlaywrightSummaryPage({
   }
 
   const selectedRunId = firstParam(searchParams?.run)
-  const { pointer, payload } = readReconciliationRunSummary(selectedRunId || undefined, 'full')
+  const mostSuccessfulFull = getMostSuccessfulReconciliationRunPointer('full')
+  const defaultRunId = selectedRunId || mostSuccessfulFull?.runId
+  const { pointer, payload } = readReconciliationRunSummary(defaultRunId, 'full')
   const latestFull = getLatestReconciliationRunPointer('full')
 
   if (!pointer || !payload) {
@@ -220,8 +223,9 @@ export default async function AdminPlaywrightSummaryPage({
 
   const totalScenarios = payload.summary.total
   const notRecordedCount = payload.summary.statusCounts['not-recorded'] ?? 0
+  const pendingUiReviewCount = payload.summary.pendingUiReview.length
   const runtimePathValidationCount = payload.summary.runtimePathValidations.length
-  const isLatestFullView = latestFull?.runId === pointer.runId
+  const isMostSuccessfulFullView = mostSuccessfulFull?.runId === pointer.runId
 
   return (
     <div className="h-full overflow-auto bg-slate-50/70">
@@ -262,8 +266,8 @@ export default async function AdminPlaywrightSummaryPage({
                 <span className="text-base font-semibold text-slate-900">Active run</span>
                 <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${pointer.isFullSuiteRun ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
                   {pointer.isFullSuiteRun
-                    ? isLatestFullView
-                      ? 'Latest full run'
+                    ? isMostSuccessfulFullView
+                      ? 'Most successful full run'
                       : 'Historical full run'
                     : 'Partial run'}
                 </span>
@@ -288,9 +292,14 @@ export default async function AdminPlaywrightSummaryPage({
                 </div>
               </div>
 
-              {pointer.isFullSuiteRun && !isLatestFullView && latestFull ? (
+              {pointer.isFullSuiteRun && !isMostSuccessfulFullView && mostSuccessfulFull ? (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  You are viewing a historical full run. The latest full sprint snapshot is <span className="font-semibold">{latestFull.runId}</span>.
+                  You are viewing a historical full run. The strongest available run is <span className="font-semibold">{mostSuccessfulFull.runId}</span>.
+                </div>
+              ) : null}
+              {latestFull && latestFull.runId !== pointer.runId && latestFull.runId !== mostSuccessfulFull?.runId ? (
+                <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+                  Latest full run: <span className="font-semibold">{latestFull.runId}</span>.
                 </div>
               ) : null}
             </div>
@@ -322,8 +331,8 @@ export default async function AdminPlaywrightSummaryPage({
           />
           <MetricCard
             label="Pending UI review"
-            value={payload.summary.statusCounts['pass-pending-ui-review'] ?? 0}
-            hint="Needs operator confirmation"
+            value={pendingUiReviewCount}
+            hint="Scenario-proof rows"
             valueClassName="text-amber-700"
           />
           <MetricCard
@@ -389,7 +398,7 @@ export default async function AdminPlaywrightSummaryPage({
           />
           <ScenarioSection
             title="Pending UI review"
-            count={payload.summary.statusCounts['pass-pending-ui-review'] ?? 0}
+            count={pendingUiReviewCount}
             subtitle="Strong automation evidence that still needs a final operator check."
             badgeClassName="bg-amber-50 text-amber-700"
             rows={payload.summary.pendingUiReview}

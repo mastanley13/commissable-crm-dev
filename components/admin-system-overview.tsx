@@ -10,7 +10,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { AdminOverviewMetrics } from '@/app/api/admin/overview/route'
+import type { AdminOverviewMetrics } from '@/lib/dashboard-metrics'
 
 interface MetricCardProps {
   icon: LucideIcon
@@ -105,8 +105,8 @@ export function AdminSystemOverview() {
   const crmDataMetrics: MetricCardProps[] = [
     { icon: Building2, label: 'Total Accounts', value: metrics?.crmData.totalAccounts ?? 0, href: '/accounts' },
     { icon: Contact, label: 'Total Contacts', value: metrics?.crmData.totalContacts ?? 0, href: '/contacts' },
-    { icon: Target, label: 'Open Opportunities', value: metrics?.crmData.openOpportunities ?? 0, href: '/opportunities?status=Open' },
-    { icon: Package, label: 'Active Products', value: metrics?.crmData.activeProducts ?? 0, href: '/catalog' }
+    { icon: Target, label: 'Active Opportunities', value: metrics?.crmData.activeOpportunities ?? 0, href: '/opportunities' },
+    { icon: Package, label: 'Active Products', value: metrics?.crmData.activeProducts ?? 0, href: '/products' }
   ]
 
   const revenueFinanceMetrics: MetricCardProps[] = [

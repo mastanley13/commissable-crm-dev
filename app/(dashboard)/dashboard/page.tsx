@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, ChangeEvent } from 'react'
 import Link from 'next/link'
 import {
   Building2,
@@ -14,26 +14,219 @@ import {
   BellRing,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { depositSummaryMock } from '@/lib/mock-data'
+import type { DashboardMetrics, DashboardReconciliationMetrics } from '@/lib/dashboard-metrics'
 
 const quickStats = [
-  { name: 'Total Accounts', value: '11', icon: Building2, href: '/accounts', color: 'bg-blue-500' },
-  { name: 'Total Contacts', value: '17', icon: Users, href: '/contacts', color: 'bg-green-500' },
-  { name: 'Opportunities', value: '23', icon: Target, href: '/opportunities', color: 'bg-purple-500' },
-  { name: 'Catalog', value: '45', icon: Package, href: '/products', color: 'bg-orange-500' }
-]
+  { name: 'Total Accounts', metricKey: 'totalAccounts', icon: Building2, href: '/accounts', color: 'bg-blue-500' },
+  { name: 'Total Contacts', metricKey: 'totalContacts', icon: Users, href: '/contacts', color: 'bg-green-500' },
+  { name: 'Active Opportunities', metricKey: 'activeOpportunities', icon: Target, href: '/opportunities', color: 'bg-purple-500' },
+  { name: 'Active Catalog', metricKey: 'activeProducts', icon: Package, href: '/products', color: 'bg-orange-500' }
+] as const
 
-const recentActivity = [
-  { id: 1, type: 'account', description: 'New account "Tech Corp" was created', time: '2 hours ago', user: 'John Doe' },
-  { id: 2, type: 'contact', description: 'Contact "Jane Smith" was updated', time: '4 hours ago', user: 'Sarah Wilson' },
-  { id: 3, type: 'opportunity', description: 'Opportunity "Q1 Sales Deal" moved to closing', time: '6 hours ago', user: 'Mike Johnson' },
-  { id: 4, type: 'task', description: 'Follow-up call scheduled with ABC Company', time: '1 day ago', user: 'Lisa Brown' }
-]
+const emptyReconciliationMetrics: DashboardReconciliationMetrics = {
+  totalUsage: 0,
+  totalCommissions: 0,
+  totalPastDueSchedules: 0,
+}
 
-type DepositSummary = {
-  totalUsageYtd: number
-  totalCommissionsYtd: number
-  totalPastDueSchedules: number
+type DisplayDateRange = {
+  from: string
+  to: string
+}
+
+const fetchDashboardMetrics = async (params?: URLSearchParams): Promise<DashboardMetrics> => {
+  const query = params?.toString()
+  const response = await fetch(`/api/dashboard/metrics${query ? `?${query}` : ''}`, {
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to load dashboard metrics')
+  }
+
+  const result = await response.json()
+  if (result.error) {
+    throw new Error(result.error)
+  }
+
+  return result.data as DashboardMetrics
+}
+
+const buildDateRangeForPreset = (
+  preset: DateRangePreset,
+  customDateRange: CustomDateRange,
+): DisplayDateRange => {
+  if (preset === 'custom') {
+    return {
+      from: customDateRange.from || '',
+      to: customDateRange.to || '',
+    }
+  }
+
+  const today = new Date()
+  let fromDate: Date
+
+  if (preset === 'ytd') {
+    fromDate = new Date(today.getFullYear(), 0, 1)
+  } else {
+    fromDate = new Date(today)
+    fromDate.setMonth(today.getMonth() - 6)
+  }
+
+  return {
+    from: formatDateYYYYMMDD(fromDate),
+    to: formatDateYYYYMMDD(today),
+  }
+}
+
+function DashboardSummaryPanels() {
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const numberFormatter = useMemo(() => new Intl.NumberFormat('en-US'), [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMetrics = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const nextMetrics = await fetchDashboardMetrics()
+        if (!cancelled) {
+          setMetrics(nextMetrics)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load dashboard metrics')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadMetrics()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {quickStats.map(stat => {
+          const Icon = stat.icon
+          const value = metrics?.crmData[stat.metricKey] ?? 0
+
+          return (
+            <Link
+              key={stat.name}
+              href={stat.href}
+              className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center">
+                <div className={`p-3 rounded-lg ${stat.color}`}>
+                  <Icon className="h-6 w-6 text-white" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {loading ? (
+                      <span className="block h-8 w-12 animate-pulse rounded bg-slate-200" />
+                    ) : (
+                      numberFormatter.format(value)
+                    )}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          )
+        })}
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+          <div className="space-y-4">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="flex items-start space-x-3">
+                  <div className="w-2 h-2 bg-primary-200 rounded-full mt-2 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="h-4 w-3/4 rounded bg-slate-200 animate-pulse" />
+                    <div className="mt-2 h-3 w-1/3 rounded bg-slate-100 animate-pulse" />
+                  </div>
+                </div>
+              ))
+            ) : metrics?.recentActivity.length ? (
+              metrics.recentActivity.map(activity => (
+                <div key={activity.id} className="flex items-start space-x-3">
+                  <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900">{activity.description}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {activity.time} - by {activity.user}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">No recent activity found.</p>
+            )}
+          </div>
+          <Link
+            href="/activities"
+            className="block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
+          >
+            {"View all activities ->"}
+          </Link>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/accounts"
+              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <Building2 className="h-5 w-5 text-primary-600 mr-3" />
+              <span className="text-sm font-medium text-gray-900">New Account</span>
+            </Link>
+            <Link
+              href="/contacts"
+              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <Users className="h-5 w-5 text-primary-600 mr-3" />
+              <span className="text-sm font-medium text-gray-900">New Contact</span>
+            </Link>
+            <Link
+              href="/opportunities"
+              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <Target className="h-5 w-5 text-primary-600 mr-3" />
+              <span className="text-sm font-medium text-gray-900">New Opportunity</span>
+            </Link>
+            <Link
+              href="/reports"
+              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <FileText className="h-5 w-5 text-primary-600 mr-3" />
+              <span className="text-sm font-medium text-gray-900">Generate Report</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </>
+  )
 }
 
 type DateRangePreset = 'ytd' | 'last6Months' | 'custom'
@@ -75,8 +268,8 @@ const MetricCard = ({ icon: Icon, label, value, loading }: MetricCardProps) => (
 )
 
 function ReconciliationSummarySection() {
-  const [summaryMetrics, setSummaryMetrics] = useState<DepositSummary>(depositSummaryMock)
-  const [summaryLoading, setSummaryLoading] = useState<boolean>(false)
+  const [summaryMetrics, setSummaryMetrics] = useState<DashboardReconciliationMetrics>(emptyReconciliationMetrics)
+  const [summaryLoading, setSummaryLoading] = useState<boolean>(true)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('ytd')
   const [customDateRange, setCustomDateRange] = useState<CustomDateRange>({ from: null, to: null })
@@ -86,47 +279,29 @@ function ReconciliationSummarySection() {
     [],
   )
   const numberFormatter = useMemo(() => new Intl.NumberFormat('en-US'), [])
-  const metricsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const simulateSummaryFetch = useCallback((preset: DateRangePreset) => {
+  const fetchSummaryMetrics = useCallback(async (range: DisplayDateRange) => {
     setSummaryLoading(true)
     setSummaryError(null)
 
-    if (metricsTimeoutRef.current) {
-      clearTimeout(metricsTimeoutRef.current)
-    }
+    try {
+      const params = new URLSearchParams()
+      if (range.from) params.set('from', range.from)
+      if (range.to) params.set('to', range.to)
 
-    const multiplierMap: Record<DateRangePreset, number> = {
-      ytd: 1,
-      last6Months: 0.62,
-      custom: 0.78,
-    }
-
-    const usageMultiplier = multiplierMap[preset] ?? 1
-    const pastDueMultiplier = preset === 'last6Months' ? 0.85 : preset === 'custom' ? 0.9 : 1
-
-    metricsTimeoutRef.current = setTimeout(() => {
-      setSummaryMetrics({
-        totalUsageYtd: Math.round(depositSummaryMock.totalUsageYtd * usageMultiplier),
-        totalCommissionsYtd: Math.round(depositSummaryMock.totalCommissionsYtd * usageMultiplier * 100) / 100,
-        totalPastDueSchedules: Math.max(
-          0,
-          Math.round(depositSummaryMock.totalPastDueSchedules * pastDueMultiplier),
-        ),
-      })
+      const nextMetrics = await fetchDashboardMetrics(params)
+      setSummaryMetrics(nextMetrics.reconciliation)
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : 'Failed to load reconciliation summary')
+      setSummaryMetrics(emptyReconciliationMetrics)
+    } finally {
       setSummaryLoading(false)
-      metricsTimeoutRef.current = null
-    }, 350)
+    }
   }, [])
 
   useEffect(() => {
-    simulateSummaryFetch('ytd')
-    return () => {
-      if (metricsTimeoutRef.current) {
-        clearTimeout(metricsTimeoutRef.current)
-      }
-    }
-  }, [simulateSummaryFetch])
+    void fetchSummaryMetrics(buildDateRangeForPreset('ytd', { from: null, to: null }))
+  }, [fetchSummaryMetrics])
 
   const handlePresetChange = useCallback(
     (event: ChangeEvent<HTMLSelectElement>) => {
@@ -135,11 +310,12 @@ function ReconciliationSummarySection() {
       setDateRangePreset(nextPreset)
 
       if (nextPreset !== 'custom') {
-        setCustomDateRange({ from: null, to: null })
-        simulateSummaryFetch(nextPreset)
+        const nextCustomRange = { from: null, to: null }
+        setCustomDateRange(nextCustomRange)
+        void fetchSummaryMetrics(buildDateRangeForPreset(nextPreset, nextCustomRange))
       }
     },
-    [simulateSummaryFetch],
+    [fetchSummaryMetrics],
   )
 
   const handleCustomDateChange = useCallback((field: keyof CustomDateRange) => {
@@ -162,19 +338,22 @@ function ReconciliationSummarySection() {
   }, [])
 
   const handleApplyCustomDateRange = useCallback(() => {
-    if (!customDateRange.from || !customDateRange.to) {
+    const from = customDateRange.from
+    const to = customDateRange.to
+
+    if (!from || !to) {
       setSummaryError('Please select both a start date and end date.')
       return
     }
 
     const datePattern = /^\d{4}-\d{2}-\d{2}$/
-    if (!datePattern.test(customDateRange.from) || !datePattern.test(customDateRange.to)) {
+    if (!datePattern.test(from) || !datePattern.test(to)) {
       setSummaryError('Please enter dates in YYYY-MM-DD format.')
       return
     }
 
-    const fromDate = new Date(customDateRange.from)
-    const toDate = new Date(customDateRange.to)
+    const fromDate = new Date(from)
+    const toDate = new Date(to)
     if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
       setSummaryError('Please enter valid dates.')
       return
@@ -187,8 +366,8 @@ function ReconciliationSummarySection() {
 
     setSummaryError(null)
     setDateRangePreset('custom')
-    simulateSummaryFetch('custom')
-  }, [customDateRange.from, customDateRange.to, simulateSummaryFetch])
+    void fetchSummaryMetrics({ from, to })
+  }, [customDateRange.from, customDateRange.to, fetchSummaryMetrics])
 
   const isApplyDisabled =
     dateRangePreset !== 'custom' ||
@@ -196,30 +375,10 @@ function ReconciliationSummarySection() {
     !customDateRange.to ||
     summaryLoading
 
-  const displayDateRange = useMemo(() => {
-    if (dateRangePreset === 'custom') {
-      return {
-        from: customDateRange.from || '',
-        to: customDateRange.to || '',
-      }
-    }
-
-    const today = new Date()
-    let fromDate: Date
-    const toDate = today
-
-    if (dateRangePreset === 'ytd') {
-      fromDate = new Date(today.getFullYear(), 0, 1)
-    } else {
-      fromDate = new Date(today)
-      fromDate.setMonth(today.getMonth() - 6)
-    }
-
-    return {
-      from: formatDateYYYYMMDD(fromDate),
-      to: formatDateYYYYMMDD(toDate),
-    }
-  }, [dateRangePreset, customDateRange.from, customDateRange.to])
+  const displayDateRange = useMemo(
+    () => buildDateRangeForPreset(dateRangePreset, customDateRange),
+    [dateRangePreset, customDateRange],
+  )
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -272,14 +431,14 @@ function ReconciliationSummarySection() {
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
           icon={TrendingUp}
-          label="Total Usage YTD"
-          value={currencyFormatter.format(summaryMetrics.totalUsageYtd)}
+          label="Total Usage"
+          value={currencyFormatter.format(summaryMetrics.totalUsage)}
           loading={summaryLoading}
         />
         <MetricCard
           icon={Wallet}
-          label="Total Commissions YTD"
-          value={currencyFormatter.format(summaryMetrics.totalCommissionsYtd)}
+          label="Total Commissions"
+          value={currencyFormatter.format(summaryMetrics.totalCommissions)}
           loading={summaryLoading}
         />
         <MetricCard
@@ -307,84 +466,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {quickStats.map(stat => (
-          <Link
-            key={stat.name}
-            href={stat.href}
-            className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow"
-          >
-            <div className="flex items-center">
-              <div className={`p-3 rounded-lg ${stat.color}`}>
-                <stat.icon className="h-6 w-6 text-white" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
-          <div className="space-y-4">
-            {recentActivity.map(activity => (
-              <div key={activity.id} className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-primary-600 rounded-full mt-2 flex-shrink-0"></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900">{activity.description}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {activity.time} - by {activity.user}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <Link
-            href="/activities"
-            className="block mt-4 text-sm text-primary-600 hover:text-primary-700 font-medium"
-          >
-            {"View all activities ->"}
-          </Link>
-        </div>
-
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href="/accounts"
-              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Building2 className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="text-sm font-medium text-gray-900">New Account</span>
-            </Link>
-            <Link
-              href="/contacts"
-              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Users className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="text-sm font-medium text-gray-900">New Contact</span>
-            </Link>
-            <Link
-              href="/opportunities"
-              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <Target className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="text-sm font-medium text-gray-900">New Opportunity</span>
-            </Link>
-            <Link
-              href="/reports"
-              className="flex items-center p-3 text-left bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <FileText className="h-5 w-5 text-primary-600 mr-3" />
-              <span className="text-sm font-medium text-gray-900">Generate Report</span>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <DashboardSummaryPanels />
 
       <ReconciliationSummarySection />
 

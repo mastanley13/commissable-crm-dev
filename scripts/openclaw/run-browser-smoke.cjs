@@ -23,6 +23,7 @@ const LIVE_SMOKE_PROMPT_IDS = [
 ]
 
 const DEGRADED_SMOKE_PROMPT_IDS = ['OC-EVAL-033']
+const SUPPORTED_MODES = ['client', 'live', 'degraded']
 
 function timestampRunId() {
   return new Date().toISOString().replace(/[:.]/g, '-')
@@ -114,13 +115,13 @@ async function loginOrRegister(page, baseUrl) {
 
   if (!forcedEmail) {
     await page.goto(`${baseUrl}/register`)
-    await page.getByLabel(/first name/i).fill('OpenClaw')
-    await page.getByLabel(/last name/i).fill('Smoke')
-    await page.getByLabel(/email address/i).fill(email)
-    await page.getByLabel(/^password/i).fill(password)
-    await page.getByLabel(/confirm password/i).fill(password)
-    await page.getByLabel(/job title/i).fill('QA')
-    await page.getByLabel(/department/i).fill('Testing')
+    await page.getByPlaceholder('First name').fill('OpenClaw')
+    await page.getByPlaceholder('Last name').fill('Smoke')
+    await page.getByPlaceholder('Email address').fill(email)
+    await page.getByPlaceholder('Password (min 8 characters)').fill(password)
+    await page.getByPlaceholder('Confirm password').fill(password)
+    await page.getByPlaceholder('Job title').fill('QA')
+    await page.getByPlaceholder('Department').fill('Testing')
     await page.getByRole('button', { name: /create account/i }).click()
     await page.waitForLoadState('networkidle')
   }
@@ -129,14 +130,20 @@ async function loginOrRegister(page, baseUrl) {
   await page.getByPlaceholder('Email address').fill(email)
   await page.getByPlaceholder('Password').fill(password)
   await page.getByRole('button', { name: /sign in/i }).click()
-  await page.waitForURL(/\/accounts(?:\/)?$/, { timeout: 30000 })
+  await page.waitForURL(/\/(?:accounts|dashboard)(?:\/)?$/, { timeout: 30000 })
 
   return { email, passwordSource: forcedPassword ? 'provided' : 'generated' }
 }
 
 function classifyTransport(result) {
+  if (!result.replyReceived) {
+    return 'no_response'
+  }
   if (result.offlineFallbackVisible || result.noLiveAnswerVisible) {
     return 'offline_fallback'
+  }
+  if (result.crmReadOnlyVisible || (result.statusBadgeText || '').toLowerCase().includes('crm read-only')) {
+    return 'crm_readonly_response'
   }
   if (result.lastAssistantMessage) {
     return 'live_response'
@@ -156,6 +163,21 @@ function evaluatePrompt(mode, prompt, result) {
       notes: passed
         ? 'Live answer path is available. Manual answer-quality review still required.'
         : 'Live answer path failed. Browser stayed in degraded/offline behavior.',
+    }
+  }
+
+  if (mode === 'client') {
+    const passed = transportClass === 'live_response' || transportClass === 'crm_readonly_response'
+    return {
+      transportClass,
+      result: passed ? 'Pass' : 'Fail',
+      severity: passed ? '' : 'Blocker',
+      notes:
+        transportClass === 'live_response'
+          ? 'Client-ready browser path returned a live OpenClaw answer. Manual answer-quality review still required.'
+          : transportClass === 'crm_readonly_response'
+            ? 'Client-ready browser path returned a CRM read-only business answer. Live OpenClaw transport still needs finalization.'
+            : 'Client-ready browser path did not return a live or CRM read-only answer.',
     }
   }
 
@@ -206,9 +228,9 @@ function toMarkdown(report) {
 }
 
 async function main() {
-  const mode = (process.env.OPENCLAW_SMOKE_MODE?.trim() || 'live').toLowerCase()
-  if (!['live', 'degraded'].includes(mode)) {
-    throw new Error(`Unsupported OPENCLAW_SMOKE_MODE: ${mode}`)
+  const mode = (process.env.OPENCLAW_SMOKE_MODE?.trim() || 'client').toLowerCase()
+  if (!SUPPORTED_MODES.includes(mode)) {
+    throw new Error(`Unsupported OPENCLAW_SMOKE_MODE: ${mode}. Supported modes: ${SUPPORTED_MODES.join(', ')}`)
   }
 
   const baseUrl = process.env.OPENCLAW_SMOKE_BASE_URL?.trim() || process.env.PLAYWRIGHT_BASE_URL?.trim() || 'http://127.0.0.1:3000'
@@ -244,18 +266,25 @@ async function main() {
       const input = page.getByPlaceholder('Message Commissable Bot')
       await input.fill(prompt.prompt_text)
       await input.press('Enter')
-      await waitForAssistantReply(page, beforeCount)
+      const replyReceived = await waitForAssistantReply(page, beforeCount)
 
       const allMessages = await page.locator('.whitespace-pre-wrap.break-words').allTextContents()
       const lastAssistantMessage = allMessages[allMessages.length - 1] || ''
       const offlineFallbackVisible = (await page.getByText('Offline Fallback').count()) > 0
+      const crmReadOnlyVisible = (await page.getByText('CRM Read-Only Mode').count()) > 0
       const noLiveAnswerVisible = (await page.getByText('No live CRM answer returned').count()) > 0
       const bannerText = (await page.locator('.mb-3').allTextContents()).join(' | ')
+      const statusBadgeText = (await page.getByText(/Live OpenClaw|CRM read-only/).allTextContents())
+        .join(' | ')
+        .trim()
 
       const evaluation = evaluatePrompt(mode, prompt, {
+        replyReceived,
         lastAssistantMessage,
         offlineFallbackVisible,
+        crmReadOnlyVisible,
         noLiveAnswerVisible,
+        statusBadgeText,
       })
 
       report.results.push({
@@ -265,8 +294,11 @@ async function main() {
         transport_class: evaluation.transportClass,
         result: evaluation.result,
         severity: evaluation.severity,
+        reply_received: replyReceived,
         offline_fallback_visible: offlineFallbackVisible,
+        crm_readonly_visible: crmReadOnlyVisible,
         no_live_answer_visible: noLiveAnswerVisible,
+        status_badge_text: statusBadgeText,
         banner_text: bannerText,
         last_assistant_message: lastAssistantMessage,
         notes: evaluation.notes,

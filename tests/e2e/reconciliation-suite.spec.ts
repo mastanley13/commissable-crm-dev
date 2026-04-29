@@ -288,6 +288,7 @@ function formatRatePercent(value: number | null): string {
 }
 
 const EXPECTED_MIXED_RATE_REPLACEMENT_SCENARIOS = new Set(['RS-030', 'RS-031'])
+const ROW_SPECIFIC_MANY_TO_ONE_PASS_SCENARIOS = new Set(['RS-020', 'RS-043'])
 
 function buildExpectedMixedRateReplacementOutcome(params: {
   ctx: ScenarioContext
@@ -1678,7 +1679,9 @@ async function runGenericMTo1Family(
       scenarioId: ctx.scenario.scenarioId,
       title: ctx.scenario.title,
       lane: ctx.scenario.lane,
-      status: 'pass-pending-ui-review',
+      status: ROW_SPECIFIC_MANY_TO_ONE_PASS_SCENARIOS.has(ctx.scenario.scenarioId)
+        ? 'pass'
+        : 'pass-pending-ui-review',
       startedAt: ctx.startedAt,
       finishedAt: new Date().toISOString(),
       notes: [

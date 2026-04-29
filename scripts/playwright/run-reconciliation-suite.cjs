@@ -20,6 +20,47 @@ const scenarioManifestPath = path.join(
   'scenario-manifest.json'
 )
 
+function parseEnvValue(rawValue) {
+  const trimmed = String(rawValue ?? '').trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+
+  return trimmed
+}
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return
+  }
+
+  const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
+
+    const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+    if (!match) {
+      continue
+    }
+
+    const [, key, rawValue] = match
+    if (process.env[key] == null || process.env[key] === '') {
+      process.env[key] = parseEnvValue(rawValue)
+    }
+  }
+}
+
+function loadPlaywrightEnv() {
+  loadEnvFile(path.join(rootDir, '.env'))
+  loadEnvFile(path.join(rootDir, '.env.local'))
+}
+
 function timestampRunId() {
   const now = new Date()
   const parts = [
@@ -165,6 +206,8 @@ function syncSummaryRunMetadata(runDir, runMetadata) {
 }
 
 function main() {
+  loadPlaywrightEnv()
+
   const cliArgs = process.argv.slice(2)
   const runId = process.env.PLAYWRIGHT_RUN_ID ?? timestampRunId()
   const runDir = path.join(suiteHistoryDir, runId)

@@ -28,7 +28,13 @@ type ChatMessage = {
   role: ChatRole
   content: string
   localOnly?: boolean
-  variant?: "intro" | "degraded"
+  variant?: "intro" | "degraded" | "crm-readonly"
+}
+
+type BotStatus = {
+  liveOpenClawGateway: boolean
+  crmReadOnlyFallback: boolean
+  label: string
 }
 
 type TopicGroup = {
@@ -44,6 +50,7 @@ type TopicItem = {
 }
 
 const CHAT_ENDPOINT = "/api/openclaw/chat"
+const STATUS_ENDPOINT = "/api/openclaw/status"
 
 const topicGroups: TopicGroup[] = [
   {
@@ -198,6 +205,7 @@ export function CommissableBotChat() {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+  const [botStatus, setBotStatus] = useState<BotStatus | null>(null)
   const transcriptRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -209,6 +217,49 @@ export function CommissableBotChat() {
     if (!node) return
     node.scrollTop = node.scrollHeight
   }, [messages, isSending])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStatus() {
+      try {
+        const response = await fetch(STATUS_ENDPOINT, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        })
+        const payload = await response.json().catch(() => null)
+        const modes = payload?.data?.responseModes
+        if (!cancelled && modes) {
+          const liveOpenClawGateway = modes.liveOpenClawGateway === true
+          const crmReadOnlyFallback = modes.crmReadOnlyFallback === true
+          setBotStatus({
+            liveOpenClawGateway,
+            crmReadOnlyFallback,
+            label: liveOpenClawGateway
+              ? "Live OpenClaw"
+              : crmReadOnlyFallback
+                ? "CRM read-only"
+                : "Offline fallback",
+          })
+        }
+      } catch {
+        if (!cancelled) {
+          setBotStatus({
+            liveOpenClawGateway: false,
+            crmReadOnlyFallback: true,
+            label: "CRM read-only",
+          })
+        }
+      }
+    }
+
+    void loadStatus()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function sendMessage(content: string) {
     const trimmed = content.trim()
@@ -253,12 +304,15 @@ export function CommissableBotChat() {
         throw new Error("OpenClaw returned an empty response.")
       }
 
+      const responseSource = typeof payload?.data?.source === "string" ? payload.data.source : null
+
       setMessages(current => [
         ...current,
         {
           id: createId(),
           role: "assistant",
           content: reply.trim(),
+          variant: responseSource === "crm_readonly_fallback" ? "crm-readonly" : undefined,
         },
       ])
     } catch (err) {
@@ -329,6 +383,18 @@ export function CommissableBotChat() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {botStatus && (
+              <div
+                className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
+                  botStatus.liveOpenClawGateway
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-sky-200 bg-sky-50 text-sky-800"
+                }`}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {botStatus.label}
+              </div>
+            )}
             <div className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
               <Shield className="h-4 w-4" />
               Safe shell: no demo customer data
@@ -431,6 +497,7 @@ export function CommissableBotChat() {
                 const isUser = message.role === "user"
                 const Icon = isUser ? User : Bot
                 const isDegradedAssistant = !isUser && message.variant === "degraded"
+                const isCrmReadOnlyAssistant = !isUser && message.variant === "crm-readonly"
 
                 return (
                   <div key={message.id} className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -446,6 +513,8 @@ export function CommissableBotChat() {
                           ? "bg-primary-900 text-white"
                           : isDegradedAssistant
                             ? "border border-amber-300 bg-amber-50 text-amber-950"
+                            : isCrmReadOnlyAssistant
+                              ? "border border-sky-200 bg-sky-50 text-slate-900"
                             : "border border-slate-200 bg-white text-slate-800"
                       }`}
                     >
@@ -453,6 +522,12 @@ export function CommissableBotChat() {
                         <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-wide text-amber-900">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           Offline Fallback
+                        </div>
+                      )}
+                      {isCrmReadOnlyAssistant && (
+                        <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-sky-200 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-wide text-sky-900">
+                          <Shield className="h-3.5 w-3.5" />
+                          CRM Read-Only Mode
                         </div>
                       )}
                       <div className="whitespace-pre-wrap break-words">{message.content}</div>

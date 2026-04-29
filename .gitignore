@@ -36,6 +36,7 @@ yarn-error.log*
 
 # Local generated artifacts
 /.artifacts/*
+.tmp/
 .scratch/
 playwright-report/
 test-results/
@@ -68,6 +69,16 @@ audits/db-backups/
 !.artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/results.xml
 !.artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/scenario-results/
 !.artifacts/playwright/reconciliation-suite/history/2026-04-07_10-51-08/scenario-results/**
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/run-metadata.json
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/reconciliation-summary.json
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/reconciliation-summary.md
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/reconciliation-scenarios.csv
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/results.json
+!.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/results.xml
+.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/scenario-results/
+.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/scenario-results/**
+.artifacts/playwright/reconciliation-suite/history/2026-04-22_full-reconciliation-recorded_14-27-40/video-index.*
 .artifacts/playwright/reconciliation-suite/history/*/html/
 .artifacts/playwright/reconciliation-suite/history/*/html/**
 .artifacts/playwright/reconciliation-suite/history/*/test-results/
@@ -77,6 +88,10 @@ audits/db-backups/
 /*.xlsx
 /*.docx
 /2026-04-17_Import_Test_Data/
+/Commissable Bot Build - Status & Next Steps.md
+/docs/test-data/data-settings-imports/client-cleanup-*/
+/docs/test-data/data-settings-imports/client-pilot-*/
+/docs/test-data/data-settings-imports/full-import/
 
 # One-off scenario and exported evidence files
 /test-scenario-*

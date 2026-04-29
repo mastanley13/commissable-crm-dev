@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import {
   getAllowedArtifactContentType,
+  getMostSuccessfulReconciliationRunPointer,
   sanitizeReconciliationSummaryPayload,
   sanitizeRunMetadata,
 } from "@/lib/playwright-reconciliation-results"
@@ -13,6 +14,14 @@ test("getAllowedArtifactContentType allows only the approved artifact extensions
   assert.equal(getAllowedArtifactContentType("summary.json"), "application/json; charset=utf-8")
   assert.equal(getAllowedArtifactContentType("report.html"), null)
   assert.equal(getAllowedArtifactContentType("archive.zip"), null)
+})
+
+test("getMostSuccessfulReconciliationRunPointer selects the strongest full-suite run", () => {
+  const pointer = getMostSuccessfulReconciliationRunPointer("full")
+
+  assert.equal(pointer?.runId, "2026-04-22_full-reconciliation-recorded_14-27-40")
+  assert.equal(pointer?.statusCounts.pass, 56)
+  assert.equal(pointer?.statusCounts["pass-pending-ui-review"], 49)
 })
 
 test("sanitizeRunMetadata redacts internal filesystem and auth details", () => {

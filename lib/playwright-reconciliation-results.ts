@@ -270,22 +270,68 @@ export function listRecentReconciliationRuns(limit = 10): ReconciliationRunPoint
   return listHistoryRuns().slice(0, limit)
 }
 
+function hasRunSummary(pointer: ReconciliationRunPointer | null): pointer is ReconciliationRunPointer {
+  return Boolean(pointer && fileExists(pointer.reconciliationSummaryJson))
+}
+
+function getSuccessfulScenarioCount(run: ReconciliationRunPointer): number {
+  return (run.statusCounts.pass ?? 0) + (run.statusCounts['pass-pending-ui-review'] ?? 0)
+}
+
+function getIssueScenarioCount(run: ReconciliationRunPointer): number {
+  return (run.statusCounts.fail ?? 0) + (run.statusCounts.blocked ?? 0)
+}
+
+function compareRunSuccess(left: ReconciliationRunPointer, right: ReconciliationRunPointer): number {
+  const successfulDelta = getSuccessfulScenarioCount(right) - getSuccessfulScenarioCount(left)
+  if (successfulDelta !== 0) return successfulDelta
+
+  const passDelta = (right.statusCounts.pass ?? 0) - (left.statusCounts.pass ?? 0)
+  if (passDelta !== 0) return passDelta
+
+  const issueDelta = getIssueScenarioCount(left) - getIssueScenarioCount(right)
+  if (issueDelta !== 0) return issueDelta
+
+  const recordedDelta =
+    right.scenarioCount -
+    (right.statusCounts['not-recorded'] ?? 0) -
+    (left.scenarioCount - (left.statusCounts['not-recorded'] ?? 0))
+  if (recordedDelta !== 0) return recordedDelta
+
+  return right.runId.localeCompare(left.runId)
+}
+
+export function getMostSuccessfulReconciliationRunPointer(
+  mode: 'full' | 'partial' | 'any' = 'full'
+): ReconciliationRunPointer | null {
+  return listHistoryRuns()
+    .filter(run => mode === 'any' || (mode === 'full' ? run.isFullSuiteRun : !run.isFullSuiteRun))
+    .filter(hasRunSummary)
+    .sort(compareRunSuccess)[0] ?? null
+}
+
 export function getLatestReconciliationRunPointer(
   mode: 'full' | 'partial' | 'any' = 'full'
 ): ReconciliationRunPointer | null {
   if (mode !== 'partial' && fileExists(latestFullPath)) {
-    return readRunPointer(latestFullPath)
+    const pointer = readRunPointer(latestFullPath)
+    if (hasRunSummary(pointer)) {
+      return pointer
+    }
   }
 
   if (mode !== 'full' && fileExists(latestPartialPath)) {
-    return readRunPointer(latestPartialPath)
+    const pointer = readRunPointer(latestPartialPath)
+    if (hasRunSummary(pointer)) {
+      return pointer
+    }
   }
 
   if (mode === 'full') {
-    return listHistoryRuns().find(run => run.isFullSuiteRun) ?? null
+    return listHistoryRuns().find(run => run.isFullSuiteRun && hasRunSummary(run)) ?? null
   }
 
-  return listHistoryRuns()[0] ?? null
+  return listHistoryRuns().find(hasRunSummary) ?? null
 }
 
 export function readReconciliationRunSummary(

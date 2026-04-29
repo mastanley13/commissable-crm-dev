@@ -4,6 +4,7 @@ import { getAuthenticatedUser, hasPermission } from '@/lib/auth'
 import {
   getArtifactHref,
   getLatestReconciliationRunPointer,
+  getMostSuccessfulReconciliationRunPointer,
   listRecentReconciliationRuns,
   readReconciliationRunSummary,
   resolveRunArtifactPath,
@@ -88,9 +89,9 @@ function relativeStatusTone(value: 'new' | 'changed' | 'same'): string {
   }
 }
 
-function runTypeClasses(run: { isFullSuiteRun: boolean }, isLatestFullRun: boolean): string {
+function runTypeClasses(run: { isFullSuiteRun: boolean }, isBestFullRun: boolean): string {
   if (run.isFullSuiteRun) {
-    return isLatestFullRun ? 'bg-emerald-50 text-emerald-700' : 'bg-teal-50 text-teal-700'
+    return isBestFullRun ? 'bg-emerald-50 text-emerald-700' : 'bg-teal-50 text-teal-700'
   }
 
   return 'bg-amber-50 text-amber-700'
@@ -271,7 +272,9 @@ export default async function AdminPlaywrightPage({
   const query = firstParam(searchParams?.q)
   const requestedPage = parsePage(searchParams?.page)
 
-  const { pointer, payload } = readReconciliationRunSummary(selectedRunId || undefined, 'full')
+  const mostSuccessfulFull = getMostSuccessfulReconciliationRunPointer('full')
+  const defaultRunId = selectedRunId || mostSuccessfulFull?.runId
+  const { pointer, payload } = readReconciliationRunSummary(defaultRunId, 'full')
   const latestFull = getLatestReconciliationRunPointer('full')
   const latestPartial = getLatestReconciliationRunPointer('partial')
   const recentRuns = listRecentReconciliationRuns(12)
@@ -310,9 +313,11 @@ export default async function AdminPlaywrightPage({
   const pageEndIndex = Math.min(pageStartIndex + paginatedRows.length, totalFilteredRows)
   const totalScenarios = payload.summary.total
   const notRecordedCount = payload.summary.statusCounts['not-recorded'] ?? 0
+  const pendingUiReviewCount = payload.summary.pendingUiReview.length
+  const runtimePathValidationCount = payload.summary.runtimePathValidations.length
   const recordedCount = Math.max(totalScenarios - notRecordedCount, 0)
   const coverage = formatCoverage(recordedCount, totalScenarios)
-  const isLatestFullView = latestFull?.runId === pointer.runId
+  const isMostSuccessfulFullView = mostSuccessfulFull?.runId === pointer.runId
 
   const comparison =
     compareSummary?.pointer && compareSummary.payload
@@ -345,8 +350,8 @@ export default async function AdminPlaywrightPage({
               <span className="font-semibold text-gray-900">Active run</span>
               <span className={`rounded-full px-2 py-1 text-xs font-semibold ${pointer.isFullSuiteRun ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                 {pointer.isFullSuiteRun
-                  ? isLatestFullView
-                    ? 'Latest full run'
+                  ? isMostSuccessfulFullView
+                    ? 'Most successful full run'
                     : 'Full run'
                   : 'Partial run'}
               </span>
@@ -382,10 +387,18 @@ export default async function AdminPlaywrightPage({
                   {label}
                 </a>
               ))}
-              {latestFull && latestFull.runId !== pointer.runId ? (
+              {mostSuccessfulFull && mostSuccessfulFull.runId !== pointer.runId ? (
+                <Link
+                  href={buildRunHref(mostSuccessfulFull.runId, selectedStatus, selectedLane, query, selectedCompareRunId)}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  Open most successful full run
+                </Link>
+              ) : null}
+              {latestFull && latestFull.runId !== pointer.runId && latestFull.runId !== mostSuccessfulFull?.runId ? (
                 <Link
                   href={buildRunHref(latestFull.runId, selectedStatus, selectedLane, query, selectedCompareRunId)}
-                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 transition hover:bg-teal-100"
                 >
                   Open latest full run
                 </Link>
@@ -400,30 +413,31 @@ export default async function AdminPlaywrightPage({
               ) : null}
             </div>
             {pointer.isFullSuiteRun ? (
-              isLatestFullView ? (
+              isMostSuccessfulFullView ? (
                 <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                  This is the latest full run. Use it as the sprint progress snapshot.
+                  This is the most successful full run available, with {payload.summary.statusCounts.pass ?? 0} pass, {pendingUiReviewCount} scenario-proof pending-review rows, and {runtimePathValidationCount} runtime-path validation rows.
                 </p>
-              ) : latestFull ? (
+              ) : mostSuccessfulFull ? (
                 <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  You are viewing a historical full run. The latest full sprint snapshot is {latestFull.runId}.
+                  You are viewing a lower-scoring full run. The strongest available run is {mostSuccessfulFull.runId}.
                 </p>
               ) : null
             ) : (
               <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Partial runs are for targeted checks. This run recorded {recordedCount} of {totalScenarios} scenarios, so use the latest full run for sprint reporting.
+                Partial runs are for targeted checks. This run recorded {recordedCount} of {totalScenarios} scenarios, so use the strongest full run for sprint reporting.
               </p>
             )}
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           {[
             ['Sprint total', totalScenarios, 'text-gray-900', 'Full manifest'],
             ['Recorded in run', recordedCount, 'text-sky-700', `${coverage} coverage`],
             ['Not recorded', notRecordedCount, 'text-gray-700', pointer.isFullSuiteRun ? 'Should stay at 0 for full runs' : 'Not executed in this run'],
             ['Pass', payload.summary.statusCounts.pass ?? 0, 'text-emerald-700', 'Fully proven'],
-            ['Pending UI review', payload.summary.statusCounts['pass-pending-ui-review'] ?? 0, 'text-amber-700', 'Needs human confirmation'],
+            ['Pending UI review', pendingUiReviewCount, 'text-amber-700', 'Scenario-proof rows'],
+            ['Runtime validations', runtimePathValidationCount, 'text-sky-700', 'Harness-path checks'],
             ['Blocked', payload.summary.statusCounts.blocked ?? 0, 'text-slate-700', 'Fixture or scope issue'],
             ['Fail', payload.summary.statusCounts.fail ?? 0, 'text-rose-700', 'Automation hit a defect'],
           ].map(([label, value, color, hint]) => (
@@ -438,7 +452,7 @@ export default async function AdminPlaywrightPage({
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900">Run browser</h2>
             <p className="mt-1 text-sm text-gray-500">
-              Full runs are reporting snapshots. Partial runs are targeted checks and should not drive sprint status.
+              Full runs are reporting snapshots. The default view opens the strongest available full-suite result.
             </p>
 
             <div className="mt-5">
@@ -449,7 +463,7 @@ export default async function AdminPlaywrightPage({
                   const runNotRecorded = run.statusCounts['not-recorded'] ?? 0
                   const runRecorded = Math.max(runTotal - runNotRecorded, 0)
                   const runCoverage = formatCoverage(runRecorded, runTotal)
-                  const isLatestFullRun = latestFull?.runId === run.runId
+                  const isBestFullRun = mostSuccessfulFull?.runId === run.runId
                   const isSelectedCompare = selectedCompareRunId === run.runId
 
                   return (
@@ -467,8 +481,8 @@ export default async function AdminPlaywrightPage({
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-gray-900">{run.runId}</span>
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${runTypeClasses(run, isLatestFullRun)}`}>
-                              {isLatestFullRun ? 'Latest full' : 'Full'}
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${runTypeClasses(run, isBestFullRun)}`}>
+                              {isBestFullRun ? 'Best full' : 'Full'}
                             </span>
                             {run.runId === pointer.runId ? (
                               <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700">
