@@ -147,6 +147,15 @@ interface OpportunityRoleContactLookup {
   mobilePhone: string | null
 }
 
+interface ContactLookup {
+  id: string
+  accountId: string
+  firstName: string
+  lastName: string
+  fullName: string
+  emailAddress: string | null
+}
+
 interface ImportContext {
   tenantId: string
   userId: string
@@ -158,6 +167,7 @@ interface ImportContext {
   activeUserIdByEmailCache: Map<string, string | null>
   opportunityIdByNameCache: Map<string, string | null>
   contactIdByMatchKeyCache: Map<string, string | null>
+  contactBySalesforceIdCache: Map<string, ContactLookup | null>
   productByCodeCache: Map<string, ProductLookup | null>
   enabledRevenueTypeCodeByNormalizedCode: Map<string, string>
   enabledRevenueTypeCodeByNormalizedLabel: Map<string, string>
@@ -913,6 +923,38 @@ async function getContactIdByMatchKey(
   return id
 }
 
+async function getContactBySalesforceId(
+  context: ImportContext,
+  salesforceId: string
+): Promise<ContactLookup | null> {
+  const key = salesforceId.trim()
+  if (!key) {
+    return null
+  }
+  if (context.contactBySalesforceIdCache.has(key)) {
+    return context.contactBySalesforceIdCache.get(key) ?? null
+  }
+
+  const contact = await prisma.contact.findFirst({
+    where: {
+      tenantId: context.tenantId,
+      salesforceId: key,
+      deletedAt: null
+    },
+    select: {
+      id: true,
+      accountId: true,
+      firstName: true,
+      lastName: true,
+      fullName: true,
+      emailAddress: true
+    }
+  })
+
+  context.contactBySalesforceIdCache.set(key, contact)
+  return contact
+}
+
 async function getOpportunityRoleContactByEmail(
   context: ImportContext,
   accountId: string,
@@ -1659,6 +1701,17 @@ async function importContactRow(
   const accountName = asTrimmedString(values.accountName)
   const firstName = asTrimmedString(values.firstName)
   const lastName = asTrimmedString(values.lastName)
+  const salesforceId = normalizeSalesforceIdInput(values.salesforceId)
+  if (salesforceId && !isValidSalesforceId(salesforceId)) {
+    return {
+      status: "error",
+      failure: {
+        field: "salesforceId",
+        errorType: "validation",
+        message: `Contact ID "${salesforceId}" is invalid. Use a 15 or 18 character alphanumeric Salesforce ID.`
+      }
+    }
+  }
 
   const account = await getAccountByName(context, accountName)
   if (!account) {
@@ -1686,7 +1739,10 @@ async function importContactRow(
   const emailAddress = asOptionalString(values.emailAddress)
   const normalizedEmail = emailAddress ? normalizeEmail(emailAddress) : null
 
-  const existingId = await getContactIdByMatchKey(
+  const existingBySalesforceId = salesforceId
+    ? await getContactBySalesforceId(context, salesforceId)
+    : null
+  const existingMatchId = await getContactIdByMatchKey(
     context,
     account.id,
     normalizedEmail,
@@ -1694,6 +1750,19 @@ async function importContactRow(
     lastName
   )
 
+  if (existingBySalesforceId && existingMatchId && existingBySalesforceId.id !== existingMatchId) {
+    return {
+      status: "error",
+      failure: {
+        field: "salesforceId",
+        errorType: "business_rule",
+        message:
+          `Contact ID "${salesforceId}" already belongs to "${existingBySalesforceId.fullName}", but the mapped account/name/email matches a different contact.`
+      }
+    }
+  }
+
+  const existingId = existingBySalesforceId?.id ?? existingMatchId
   if (existingId && !options.upsertExisting) {
     return { status: "skipped" }
   }
@@ -1787,6 +1856,9 @@ async function importContactRow(
     description: asOptionalString(values.description),
     updatedById: context.userId
   }
+  if (salesforceId) {
+    Object.assign(payload, { salesforceId })
+  }
 
   if (options.validateOnly) {
     return { status: "success" }
@@ -1797,9 +1869,22 @@ async function importContactRow(
       where: { id: existingId },
       data: payload
     })
+    if (existingBySalesforceId) {
+      context.contactIdByMatchKeyCache.delete(
+        buildContactMatchKey(
+          existingBySalesforceId.accountId,
+          existingBySalesforceId.emailAddress,
+          existingBySalesforceId.firstName,
+          existingBySalesforceId.lastName
+        )
+      )
+    }
     context.contactIdByMatchKeyCache.delete(
       buildContactMatchKey(account.id, normalizedEmail, firstName, lastName)
     )
+    if (salesforceId) {
+      context.contactBySalesforceIdCache.delete(salesforceId)
+    }
     return { status: "success", mutations: [updatedMutation("Contact", existingId)] }
   } else {
     const created = await prisma.contact.create({
@@ -1813,6 +1898,9 @@ async function importContactRow(
     context.contactIdByMatchKeyCache.delete(
       buildContactMatchKey(account.id, normalizedEmail, firstName, lastName)
     )
+    if (salesforceId) {
+      context.contactBySalesforceIdCache.delete(salesforceId)
+    }
     return { status: "success", mutations: [createdMutation("Contact", created.id)] }
   }
 }
@@ -2972,6 +3060,7 @@ export async function POST(request: NextRequest) {
       activeUserIdByEmailCache: new Map(),
       opportunityIdByNameCache: new Map(),
       contactIdByMatchKeyCache: new Map(),
+      contactBySalesforceIdCache: new Map(),
       productByCodeCache: new Map(),
       enabledRevenueTypeCodeByNormalizedCode: new Map(
         revenueTypeOptions.map(option => [normalizeLookupKey(option.value), option.value])

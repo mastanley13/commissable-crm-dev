@@ -448,6 +448,7 @@ model Contact {
   assistantPhone                 String?
   linkedinUrl                    String?
   websiteUrl                     String?
+  salesforceId                   String?                  @db.VarChar(18)
   birthdate                      DateTime?
   anniversary                    DateTime?
   description                    String?
@@ -478,6 +479,7 @@ model Contact {
   reconciliationTemplatesCreated ReconciliationTemplate[]
   depositsCreated                Deposit[]                @relation("DepositCreatedByContact")
 
+  @@unique([tenantId, salesforceId])
   @@index([tenantId, accountId])
   @@index([tenantId, ownerId])
   @@index([tenantId, lastName, firstName])

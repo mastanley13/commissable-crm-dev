@@ -74,6 +74,12 @@ export const DATA_IMPORT_ENTITIES: DataImportEntityDefinition[] = [
     description:
       "Create or update contact records linked to existing accounts (matched by email when provided, otherwise by name).",
     fields: [
+      {
+        id: "salesforceId",
+        label: "Contact ID",
+        required: false,
+        aliases: ["salesforce id", "salesforce contact id", "sf contact id", "sfid"]
+      },
       { id: "accountName", label: "Account Name", required: true, aliases: ["account"] },
       { id: "firstName", label: "First Name", required: true, aliases: ["firstname"] },
       { id: "lastName", label: "Last Name", required: true, aliases: ["lastname"] },
