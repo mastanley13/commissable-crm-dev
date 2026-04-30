@@ -159,7 +159,7 @@ test("resolveIntentFromMessage maps realistic import blockers and write requests
   const previewResolution = resolveIntentFromMessage({
     message: "Create a ticket for this reconciliation issue.",
   })
-  assert.equal(previewResolution.primaryMatch?.intent, "action.preview_write_request")
+  assert.equal(previewResolution.primaryMatch?.intent, "action.draft_support_ticket")
   assert.equal(previewResolution.primaryMatch?.availability, "preview_only")
   assert.equal(previewResolution.primaryMatch?.handlingMode, "preview_only")
 
@@ -178,4 +178,37 @@ test("buildOpenClawReadOnlySystemPrompt references the registry and resolver ins
   assert.match(prompt, /\/api\/bot\/v1\/tools\/capabilities\/resolve/)
   assert.match(prompt, /Do not ask users for route names, endpoint details, HTTP methods, or API discovery help/i)
   assert.match(prompt, /Keep OpenClaw v1 read-only/i)
+})
+
+test("resolveIntentFromMessage maps V1.5 demo action prompts to draft/preview intents", () => {
+  const cases = [
+    {
+      prompt: "Draft a support ticket for this failed revenue schedule import.",
+      intent: "action.draft_support_ticket",
+    },
+    {
+      prompt: "Draft an import correction plan for failed account rows that need a corrected CSV re-upload.",
+      intent: "action.draft_import_correction_plan",
+    },
+    {
+      prompt: "Draft a reconciliation handoff for this unmatched payment.",
+      intent: "action.draft_reconciliation_handoff",
+    },
+    {
+      prompt: "Preview the match review for this deposit line before applying it.",
+      intent: "action.preview_match_review",
+    },
+    {
+      prompt: "Draft a client follow-up note about the current import cleanup review.",
+      intent: "action.draft_client_follow_up",
+    },
+  ]
+
+  for (const entry of cases) {
+    const resolution = resolveIntentFromMessage({ message: entry.prompt })
+    assert.equal(resolution.primaryMatch?.intent, entry.intent, entry.prompt)
+    assert.equal(resolution.primaryMatch?.availability, "preview_only", entry.prompt)
+    assert.equal(resolution.primaryMatch?.handlingMode, "preview_only", entry.prompt)
+    assert.equal(resolution.routeDiscoveryAllowed, false, entry.prompt)
+  }
 })

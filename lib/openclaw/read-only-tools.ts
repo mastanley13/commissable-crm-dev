@@ -172,7 +172,7 @@ const MONTH_NAME_TO_NUMBER: Record<string, string> = {
 
 const IMPORT_ENTITY_TERMS: Array<{ entity: string; terms: string[] }> = [
   { entity: "RevenueSchedules", terms: ["revenue schedule", "revenue schedules", "schedule import", "schedule imports"] },
-  { entity: "Accounts", terms: ["account import", "account imports", "accounts import", "accounts imports"] },
+  { entity: "Accounts", terms: ["account import", "account imports", "accounts import", "accounts imports", "account row", "account rows", "accounts row", "accounts rows"] },
   { entity: "Contacts", terms: ["contact import", "contact imports", "contacts import", "contacts imports"] },
   { entity: "Opportunities", terms: ["opportunity import", "opportunity imports", "opportunities import", "opportunities imports"] },
   { entity: "OpportunityLineItems", terms: ["line item import", "line item imports", "opportunity line item", "opportunity line items"] },
@@ -207,13 +207,33 @@ const INTENT_MATCH_RULES: Record<string, IntentMatchRule[]> = {
     { allOf: ["reconciliation"], anyOf: ["summary", "totals", "status"], score: 6 },
   ],
   "workflow.import_status": [
-    { anyOf: ["import", "imports"], score: 7 },
-    { allOf: ["import"], anyOf: ["failed", "failure", "errors", "blockers", "status", "recent", "latest"], score: 8 },
+    { anyOf: ["import", "imports"], noneOf: ["draft", "correction", "plan", "fix", "re-upload", "reupload"], score: 7 },
+    { allOf: ["import"], anyOf: ["failed", "failure", "errors", "blockers", "status", "recent", "latest"], noneOf: ["draft", "correction", "plan", "fix", "re-upload", "reupload"], score: 8 },
   ],
   "action.preview_write_request": [
     { anyOf: ["create", "update", "delete", "apply", "undo", "run", "draft"], score: 5 },
     { allOf: ["ticket"], anyOf: ["create", "draft"], score: 9 },
     { anyOf: ["apply match", "undo import", "run import", "update schedule", "create ticket"], score: 10 },
+  ],
+  "action.draft_support_ticket": [
+    { allOf: ["ticket"], anyOf: ["draft", "create", "support", "issue"], score: 12 },
+    { anyOf: ["draft a ticket", "create a ticket", "support ticket"], score: 12 },
+  ],
+  "action.draft_import_correction_plan": [
+    { allOf: ["import"], anyOf: ["correction", "failed rows", "fix", "retry", "re-upload", "reupload"], score: 12 },
+    { anyOf: ["failed-row correction", "import correction", "correction csv"], score: 12 },
+  ],
+  "action.draft_reconciliation_handoff": [
+    { allOf: ["reconciliation"], anyOf: ["handoff", "exception", "escalation", "unmatched"], score: 12 },
+    { anyOf: ["reconciliation handoff", "exception handoff", "unmatched payment"], score: 12 },
+  ],
+  "action.preview_match_review": [
+    { allOf: ["match"], anyOf: ["preview", "review", "before applying", "candidate"], score: 12 },
+    { anyOf: ["preview match", "match review", "review a match"], score: 12 },
+  ],
+  "action.draft_client_follow_up": [
+    { allOf: ["client"], anyOf: ["follow up", "follow-up", "email", "note"], score: 12 },
+    { anyOf: ["client follow-up", "customer follow-up", "follow-up note"], score: 12 },
   ],
   "insight.accounts_with_issues": [
     { allOf: ["account", "accounts"], anyOf: ["issues", "problems", "open issues"], score: 10 },
@@ -404,6 +424,93 @@ export const OPENCLAW_V1_INTENT_CAPABILITIES: OpenClawCapability[] = [
     responsePattern: "Explain that v1 is read-only and, when helpful, return a draft-only summary that a human can review.",
     phaseBoundary: "read-only-v1",
     fallbackRule: "Never execute CRM writes, imports, reconciliation apply/unapply, or schedule/account/product mutations.",
+  },
+  {
+    intent: "action.draft_support_ticket",
+    availability: "preview_only",
+    handlingMode: "preview_only",
+    summary: "Draft a non-persistent support ticket handoff from the user's issue details.",
+    exampleUtterances: [
+      "Draft a support ticket for this failed revenue schedule import.",
+      "Create a ticket draft for this reconciliation issue.",
+    ],
+    normalizedParams: [
+      { name: "issue", required: false, format: "string", description: "User-provided issue details to summarize." },
+    ],
+    toolMappings: [
+      { method: "POST", path: "tickets/draft", purpose: "Return a non-persistent ticket draft for human review." },
+    ],
+    responsePattern: "Return title, priority suggestion, issue summary, evidence to collect, owner suggestion, and next steps. Do not save the ticket.",
+    phaseBoundary: "read-only-v1",
+    fallbackRule: "Do not create the ticket. Make clear the output is a draft for human review.",
+  },
+  {
+    intent: "action.draft_import_correction_plan",
+    availability: "preview_only",
+    handlingMode: "preview_only",
+    summary: "Draft a correction plan for failed import rows without changing import state.",
+    exampleUtterances: [
+      "Draft an import correction plan for failed account rows.",
+      "Help me fix and re-upload the failed-row CSV.",
+    ],
+    normalizedParams: [
+      { name: "issue", required: false, format: "string", description: "Import type, file, or failure details from the user." },
+    ],
+    toolMappings: [],
+    responsePattern: "Return correction steps, validation checks, re-upload guidance, and risk notes. Do not run or undo imports.",
+    phaseBoundary: "read-only-v1",
+    fallbackRule: "Do not run, validate, undo, or re-upload the import. Provide operator guidance only.",
+  },
+  {
+    intent: "action.draft_reconciliation_handoff",
+    availability: "preview_only",
+    handlingMode: "preview_only",
+    summary: "Draft a reconciliation exception handoff for an unmatched or questionable payment.",
+    exampleUtterances: [
+      "Draft a reconciliation handoff for this unmatched payment.",
+      "Prepare an exception summary for accounting review.",
+    ],
+    normalizedParams: [
+      { name: "issue", required: false, format: "string", description: "Deposit, vendor, account, or exception details from the user." },
+    ],
+    toolMappings: [],
+    responsePattern: "Return exception summary, facts to verify, recommended owner, and next review steps. Do not apply reconciliation changes.",
+    phaseBoundary: "read-only-v1",
+    fallbackRule: "Do not match, unmatch, finalize, or alter financial state.",
+  },
+  {
+    intent: "action.preview_match_review",
+    availability: "preview_only",
+    handlingMode: "preview_only",
+    summary: "Preview the human review steps for a possible deposit-to-schedule match.",
+    exampleUtterances: [
+      "Preview the match review for this deposit line before applying it.",
+      "Help me review a match candidate.",
+    ],
+    normalizedParams: [
+      { name: "issue", required: false, format: "string", description: "Candidate match facts supplied by the user." },
+    ],
+    toolMappings: [],
+    responsePattern: "Return match checks, risk flags, approval questions, and no-write recommendation. Do not apply the match.",
+    phaseBoundary: "read-only-v1",
+    fallbackRule: "Do not apply matches or create adjustments. Keep the output as a review checklist.",
+  },
+  {
+    intent: "action.draft_client_follow_up",
+    availability: "preview_only",
+    handlingMode: "preview_only",
+    summary: "Draft a client-safe follow-up note based on the user's operational context.",
+    exampleUtterances: [
+      "Draft a client follow-up note about the import cleanup.",
+      "Write a customer follow-up email for this reconciliation status.",
+    ],
+    normalizedParams: [
+      { name: "issue", required: false, format: "string", description: "Follow-up context supplied by the user." },
+    ],
+    toolMappings: [],
+    responsePattern: "Return a concise follow-up note with neutral wording and no sensitive unsupported claims.",
+    phaseBoundary: "read-only-v1",
+    fallbackRule: "Do not send external communication. Return draft copy only.",
   },
   {
     intent: "insight.accounts_with_issues",
@@ -635,6 +742,12 @@ function resolveSuggestedParams(intent: string, normalizedMessage: string, defau
     const status = resolveImportStatus(normalizedMessage)
     if (entity) suggestedParams.entity = entity
     if (status) suggestedParams.status = status
+  }
+
+  if (intent === "action.draft_import_correction_plan") {
+    const entity = resolveImportEntity(normalizedMessage)
+    if (entity) suggestedParams.entity = entity
+    suggestedParams.status = "Failed"
   }
 
   if (intent === "action.preview_write_request") {

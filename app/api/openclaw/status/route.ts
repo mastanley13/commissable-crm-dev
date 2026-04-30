@@ -24,6 +24,36 @@ function resolveChatCompletionsUrl() {
   return `${normalized}/v1/chat/completions`
 }
 
+function resolveGatewayWsUrl() {
+  const configured = process.env.OPENCLAW_GATEWAY_WS_URL?.trim()
+  if (configured) return configured
+
+  const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL?.trim()
+  if (!gatewayUrl) return null
+
+  try {
+    const parsed = new URL(gatewayUrl)
+    if (parsed.protocol === "ws:" || parsed.protocol === "wss:") {
+      parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/"
+      parsed.search = ""
+      parsed.hash = ""
+      return parsed.toString()
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+    parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:"
+    parsed.search = ""
+    parsed.hash = ""
+    parsed.pathname = parsed.pathname
+      .replace(/\/v1\/chat\/completions\/?$/, "")
+      .replace(/\/v1\/?$/, "")
+      .replace(/\/+$/, "") || "/"
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
 function resolveGatewayHealthUrl() {
   const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL?.trim()
   if (!gatewayUrl) return null
@@ -92,11 +122,12 @@ async function fetchHealth(url: string | null) {
 export async function GET(request: NextRequest) {
   return withAuth(request, async () => {
     const chatCompletionsUrl = resolveChatCompletionsUrl()
+    const gatewayWsUrl = resolveGatewayWsUrl()
     const gatewayHealthUrl = resolveGatewayHealthUrl()
     const gatewayTokenConfigured = Boolean(
       process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || process.env.OPENCLAW_GATEWAY_PASSWORD?.trim(),
     )
-    const chatTransportConfigured = Boolean(chatCompletionsUrl && gatewayTokenConfigured)
+    const chatTransportConfigured = Boolean((chatCompletionsUrl || gatewayWsUrl) && gatewayTokenConfigured)
     const health = await fetchHealth(gatewayHealthUrl)
 
     return NextResponse.json({
@@ -109,10 +140,12 @@ export async function GET(request: NextRequest) {
         },
         openClaw: {
           chatTransportConfigured,
+          gatewayWebSocketUrlConfigured: Boolean(process.env.OPENCLAW_GATEWAY_WS_URL?.trim() || gatewayWsUrl),
           gatewayUrlConfigured: Boolean(process.env.OPENCLAW_GATEWAY_URL?.trim()),
           chatCompletionsUrlConfigured: Boolean(process.env.OPENCLAW_CHAT_COMPLETIONS_URL?.trim()),
           gatewayTokenConfigured,
           model: process.env.OPENCLAW_CHAT_MODEL?.trim() || process.env.OPENCLAW_BACKEND_MODEL?.trim() || null,
+          gatewayWebSocketUrl: safeUrlSummary(gatewayWsUrl),
           chatCompletionsUrl: safeUrlSummary(chatCompletionsUrl),
           gatewayHealthUrl: safeUrlSummary(gatewayHealthUrl),
           health,
@@ -127,6 +160,11 @@ export async function GET(request: NextRequest) {
             "workflow.reconciliation_summary",
             "workflow.import_status",
             "action.preview_write_request",
+            "action.draft_support_ticket",
+            "action.draft_import_correction_plan",
+            "action.draft_reconciliation_handoff",
+            "action.preview_match_review",
+            "action.draft_client_follow_up",
           ],
         },
       },

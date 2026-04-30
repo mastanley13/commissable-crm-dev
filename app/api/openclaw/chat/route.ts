@@ -1,6 +1,6 @@
 import crypto from "crypto"
 import { NextRequest, NextResponse } from "next/server"
-import { AuditAction, DataEntity } from "@prisma/client"
+import { AuditAction, DataEntity, TicketPriority, TicketSeverity, TicketStatus } from "@prisma/client"
 
 import { withAuth, type AuthenticatedRequest } from "@/lib/api-auth"
 import { getClientIP, getUserAgent, logAudit } from "@/lib/audit"
@@ -28,7 +28,24 @@ type OpenClawChatBody = {
   messages?: ChatMessage[]
 }
 
-type ChatResponseSource = "openclaw_gateway" | "crm_readonly_fallback"
+type ChatResponseSource = "openclaw_gateway" | "crm_readonly_fallback" | "crm_test_action"
+type OpenClawDeviceIdentity = {
+  deviceId: string
+  publicKey: string
+  privateKey: crypto.KeyObject
+}
+type OpenClawGatewayMessage = {
+  type?: string
+  id?: string
+  ok?: boolean
+  payload?: unknown
+  error?: {
+    code?: string
+    message?: string
+    details?: unknown
+  }
+  event?: string
+}
 
 const MAX_MESSAGES = 24
 const MAX_MESSAGE_LENGTH = 6000
@@ -37,6 +54,28 @@ const ACCOUNT_READ_PERMISSIONS = ["accounts.read", "accounts.manage"]
 const SCHEDULE_READ_PERMISSIONS = ["reconciliation.view", "revenue-schedules.manage"]
 const RECONCILIATION_READ_PERMISSIONS = ["reconciliation.view"]
 const IMPORT_READ_PERMISSIONS = ["admin.data_settings.manage", "system.settings.read", "system.settings.write"]
+const TEST_ACTION_TICKET_PREFIX = "[BOT TEST]"
+const TEST_ACTION_NOTE_MARKER = "Created by OpenClaw supervised test action."
+const OPENCLAW_OPERATOR_SCOPES = [
+  "operator.admin",
+  "operator.read",
+  "operator.write",
+  "operator.approvals",
+  "operator.pairing",
+]
+const OPENCLAW_GATEWAY_CLIENT = {
+  id: "openclaw-control-ui",
+  version: "control-ui",
+  platform: "web",
+  mode: "webchat",
+}
+
+let cachedDeviceIdentity: OpenClawDeviceIdentity | null = null
+
+function openClawActionsEnabled() {
+  const value = process.env.OPENCLAW_ACTIONS_ENABLED?.trim().toLowerCase()
+  return value === "true" || value === "1" || value === "yes" || value === "on"
+}
 
 function resolveChatCompletionsUrl() {
   const configured = process.env.OPENCLAW_CHAT_COMPLETIONS_URL?.trim()
@@ -51,8 +90,50 @@ function resolveChatCompletionsUrl() {
   return `${normalized}/v1/chat/completions`
 }
 
+function resolveGatewayWsUrl() {
+  const configured = process.env.OPENCLAW_GATEWAY_WS_URL?.trim()
+  if (configured) return configured
+
+  const gatewayUrl = process.env.OPENCLAW_GATEWAY_URL?.trim()
+  if (!gatewayUrl) return null
+
+  try {
+    const parsed = new URL(gatewayUrl)
+    if (parsed.protocol === "ws:" || parsed.protocol === "wss:") {
+      parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/"
+      parsed.search = ""
+      parsed.hash = ""
+      return parsed.toString()
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+    parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:"
+    parsed.search = ""
+    parsed.hash = ""
+    parsed.pathname = parsed.pathname
+      .replace(/\/v1\/chat\/completions\/?$/, "")
+      .replace(/\/v1\/?$/, "")
+      .replace(/\/+$/, "") || "/"
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
 function resolveGatewayToken() {
   return process.env.OPENCLAW_GATEWAY_TOKEN?.trim() || process.env.OPENCLAW_GATEWAY_PASSWORD?.trim() || null
+}
+
+function resolveGatewayOrigin(wsUrl: string) {
+  const configured = process.env.OPENCLAW_GATEWAY_ORIGIN?.trim()
+  if (configured) return configured
+
+  const parsed = new URL(wsUrl)
+  parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:"
+  parsed.pathname = "/"
+  parsed.search = ""
+  parsed.hash = ""
+  return parsed.origin
 }
 
 function normalizeMessages(messages: unknown): ChatMessage[] {
@@ -94,6 +175,276 @@ function extractAssistantText(payload: unknown): string | null {
 
   const text = choice.text
   return typeof text === "string" && text.trim() ? text.trim() : null
+}
+
+function base64Url(value: Buffer | Uint8Array) {
+  return Buffer.from(value).toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "")
+}
+
+function getRawEd25519PublicKey(publicKey: crypto.KeyObject) {
+  const der = publicKey.export({ type: "spki", format: "der" })
+  return der.subarray(der.length - 32)
+}
+
+function getOpenClawDeviceIdentity() {
+  if (cachedDeviceIdentity) return cachedDeviceIdentity
+
+  const keyPair = crypto.generateKeyPairSync("ed25519")
+  const publicKey = getRawEd25519PublicKey(keyPair.publicKey)
+  cachedDeviceIdentity = {
+    deviceId: crypto.createHash("sha256").update(publicKey).digest("hex"),
+    publicKey: base64Url(publicKey),
+    privateKey: keyPair.privateKey,
+  }
+  return cachedDeviceIdentity
+}
+
+function signOpenClawDevice(args: {
+  deviceId: string
+  privateKey: crypto.KeyObject
+  token: string
+  nonce: string
+  signedAtMs: number
+}) {
+  const signingInput = [
+    "v2",
+    args.deviceId,
+    OPENCLAW_GATEWAY_CLIENT.id,
+    OPENCLAW_GATEWAY_CLIENT.mode,
+    "operator",
+    OPENCLAW_OPERATOR_SCOPES.join(","),
+    String(args.signedAtMs),
+    args.token,
+    args.nonce,
+  ].join("|")
+
+  return base64Url(crypto.sign(null, Buffer.from(signingInput), args.privateKey))
+}
+
+function sanitizeOpenClawSessionPart(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || "chat"
+}
+
+function buildOpenClawSessionKey(request: AuthenticatedRequest, conversationId: string) {
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${request.user.tenantId}:${request.user.id}:${conversationId}`)
+    .digest("hex")
+    .slice(0, 24)
+  return `agent:main:${sanitizeOpenClawSessionPart(`crm-${digest}`)}`
+}
+
+function buildOpenClawBrowserPrompt(messages: ChatMessage[]) {
+  const conversation = messages
+    .slice(-8)
+    .map((message) => `${message.role === "assistant" ? "Assistant" : "User"}: ${message.content}`)
+    .join("\n\n")
+
+  return [
+    "You are OpenClaw answering inside the Commissable CRM browser chat.",
+    "Keep the response read-only. Do not create, update, delete, import, reconcile, commit, deploy, or run destructive actions.",
+    "Use concise business language. If you need CRM data, use only already configured read-only CRM access.",
+    "",
+    conversation,
+  ].join("\n")
+}
+
+function extractOpenClawTextFromMessage(message: unknown) {
+  if (!message || typeof message !== "object") return null
+  const root = message as Record<string, unknown>
+  const text = root.text
+  if (typeof text === "string" && text.trim()) return text.trim()
+
+  const content = root.content
+  if (typeof content === "string" && content.trim()) return content.trim()
+  if (!Array.isArray(content)) return null
+
+  const parts = content
+    .map((part) => {
+      if (typeof part === "string") return part
+      if (!part || typeof part !== "object") return ""
+      const candidate = part as Record<string, unknown>
+      return candidate.type === "text" && typeof candidate.text === "string" ? candidate.text : ""
+    })
+    .join("")
+    .trim()
+
+  return parts || null
+}
+
+async function askOpenClawWebSocketGateway(args: {
+  wsUrl: string
+  token: string
+  request: AuthenticatedRequest
+  conversationId: string
+  messages: ChatMessage[]
+  signal: AbortSignal
+}) {
+  const origin = resolveGatewayOrigin(args.wsUrl)
+  const deviceIdentity = getOpenClawDeviceIdentity()
+  const sessionKey = buildOpenClawSessionKey(args.request, args.conversationId)
+  const runId = crypto.randomUUID()
+  const pending = new Map<
+    string,
+    {
+      resolve: (message: OpenClawGatewayMessage) => void
+      reject: (error: Error) => void
+    }
+  >()
+  let nextRequestId = 1
+  let streamText = ""
+  let settled = false
+
+  const ws = new (WebSocket as any)(args.wsUrl, { headers: { Origin: origin } })
+
+  function cleanup() {
+    pending.forEach(({ reject }) => reject(new Error("OpenClaw gateway connection closed.")))
+    pending.clear()
+    try {
+      ws.close()
+    } catch {
+      // Ignore close failures on already-closed sockets.
+    }
+  }
+
+  function requestGateway(method: string, params: Record<string, unknown>) {
+    if (ws.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error("OpenClaw gateway socket is not open."))
+    }
+
+    const id = String(nextRequestId++)
+    ws.send(JSON.stringify({ type: "req", id, method, params }))
+
+    return new Promise<unknown>((resolve, reject) => {
+      pending.set(id, {
+        resolve: (message) => {
+          if (message.ok === false) {
+            reject(new Error(message.error?.message || `OpenClaw gateway request failed: ${method}`))
+            return
+          }
+          resolve(message.payload)
+        },
+        reject,
+      })
+    })
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    function fail(error: Error) {
+      if (settled) return
+      settled = true
+      args.signal.removeEventListener("abort", onAbort)
+      cleanup()
+      reject(error)
+    }
+
+    function succeed(text: string) {
+      if (settled) return
+      settled = true
+      args.signal.removeEventListener("abort", onAbort)
+      cleanup()
+      resolve(text)
+    }
+
+    function onAbort() {
+      fail(new DOMException("OpenClaw gateway request aborted.", "AbortError"))
+    }
+
+    async function connect(nonce: string) {
+      const signedAt = Date.now()
+      const device = {
+        id: deviceIdentity.deviceId,
+        publicKey: deviceIdentity.publicKey,
+        signature: signOpenClawDevice({
+          deviceId: deviceIdentity.deviceId,
+          privateKey: deviceIdentity.privateKey,
+          token: args.token,
+          nonce,
+          signedAtMs: signedAt,
+        }),
+        signedAt,
+        nonce,
+      }
+
+      await requestGateway("connect", {
+        minProtocol: 3,
+        maxProtocol: 3,
+        client: OPENCLAW_GATEWAY_CLIENT,
+        role: "operator",
+        scopes: OPENCLAW_OPERATOR_SCOPES,
+        device,
+        caps: ["tool-events"],
+        auth: { token: args.token },
+        userAgent: "Commissable CRM browser chat",
+        locale: "en-US",
+      })
+
+      await requestGateway("sessions.subscribe", {}).catch(() => null)
+      await requestGateway("chat.send", {
+        sessionKey,
+        message: buildOpenClawBrowserPrompt(args.messages),
+        deliver: false,
+        idempotencyKey: runId,
+      })
+    }
+
+    args.signal.addEventListener("abort", onAbort)
+
+    ws.addEventListener("message", (event: MessageEvent) => {
+      try {
+        const message = JSON.parse(String(event.data)) as OpenClawGatewayMessage
+        if (message.type === "event") {
+          if (message.event === "connect.challenge") {
+            const payload = message.payload as Record<string, unknown> | undefined
+            const nonce = typeof payload?.nonce === "string" ? payload.nonce : ""
+            connect(nonce).catch(fail)
+            return
+          }
+
+          if (message.event !== "chat") return
+          const payload = message.payload as Record<string, unknown> | undefined
+          if (!payload || payload.runId !== runId || payload.sessionKey !== sessionKey) return
+
+          const state = typeof payload.state === "string" ? payload.state : null
+          if (state === "delta") {
+            streamText = extractOpenClawTextFromMessage(payload.message) || streamText
+            return
+          }
+
+          if (state === "final" || state === "aborted") {
+            const text = extractOpenClawTextFromMessage(payload.message) || streamText
+            if (text) {
+              succeed(text)
+              return
+            }
+            fail(new Error("OpenClaw gateway returned an empty response."))
+            return
+          }
+
+          if (state === "error") {
+            fail(new Error(typeof payload.errorMessage === "string" ? payload.errorMessage : "OpenClaw gateway chat failed."))
+          }
+          return
+        }
+
+        if (message.type === "res" && message.id && pending.has(String(message.id))) {
+          const waiter = pending.get(String(message.id))!
+          pending.delete(String(message.id))
+          waiter.resolve(message)
+        }
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error("OpenClaw gateway returned an invalid message."))
+      }
+    })
+
+    ws.addEventListener("error", () => {
+      fail(new Error("Unable to reach OpenClaw gateway WebSocket."))
+    })
+
+    ws.addEventListener("close", () => {
+      if (!settled) fail(new Error("OpenClaw gateway closed before returning a response."))
+    })
+  })
 }
 
 function toFiniteNumber(value: unknown): number {
@@ -139,7 +490,7 @@ function extractLookupText(message: string, keywords: string[]) {
 
 function buildCapabilityOverview() {
   return [
-    "I can help in CRM read-only mode while the OpenClaw transport is being finalized.",
+    "I can help in CRM read-only and draft/preview mode while the OpenClaw transport is being finalized.",
     "",
     "Useful test prompts:",
     "- What are the top 5 usage accounts for March 2026?",
@@ -147,8 +498,196 @@ function buildCapabilityOverview() {
     "- What recent imports failed?",
     "- Look up account context for <account name>.",
     "- Find deposits for <vendor or account name>.",
+    "- Draft a support ticket for this failed import.",
+    "- Draft a reconciliation handoff for this unmatched payment.",
     "",
-    "I will not create, update, delete, run imports, or apply reconciliation changes in v1.",
+    "I can draft handoffs and review checklists, but I will not save, send, update, delete, run imports, or apply reconciliation changes.",
+  ].join("\n")
+}
+
+function summarizeUserIssue(message: string) {
+  return message
+    .replace(/\s+/g, " ")
+    .replace(/^(please\s+)?(draft|create|prepare|write|preview|help me)\s+/i, "")
+    .replace(/^(a|an)\s+/i, "")
+    .replace(/^support ticket for\s+/i, "")
+    .replace(/^ticket draft for\s+/i, "")
+    .replace(/^import correction plan for\s+/i, "")
+    .replace(/^reconciliation handoff for\s+/i, "")
+    .replace(/^client follow-up note about\s+/i, "")
+    .replace(/^match review for\s+/i, "")
+    .trim()
+    .slice(0, 220) || "User-provided issue details were not specified."
+}
+
+function sentenceFragment(value: string) {
+  return value.replace(/[.!?\s]+$/g, "")
+}
+
+function buildDraftSupportTicketAnswer(message: string) {
+  const issue = summarizeUserIssue(message)
+
+  return [
+    "Non-persistent support ticket draft:",
+    "",
+    "Title: CRM review needed - issue from bot handoff",
+    "Priority suggestion: Medium unless the issue blocks import, reconciliation, or client reporting.",
+    "",
+    "Issue summary:",
+    `- ${issue}`,
+    "",
+    "Evidence to attach:",
+    "- Current page or record link.",
+    "- Import job, deposit, account, or schedule identifier if known.",
+    "- Screenshot or exact error text.",
+    "- Expected result vs. observed result.",
+    "",
+    "Suggested next step:",
+    "- Assign to the CRM support/admin owner for triage before any data changes are made.",
+    "",
+    "Status: Draft only. I did not create or save a ticket.",
+  ].join("\n")
+}
+
+async function findRecentImportProblemJobs(request: AuthenticatedRequest, message: string) {
+  const resolution = resolveIntentFromMessage({ message })
+  const suggested = resolution.primaryMatch?.suggestedParams ?? {}
+  const entity =
+    typeof suggested.entity === "string" && (Object.values(DataEntity) as string[]).includes(suggested.entity)
+      ? (suggested.entity as DataEntity)
+      : undefined
+
+  return prisma.importJob.findMany({
+    where: {
+      tenantId: request.user.tenantId,
+      ...(entity ? { entity } : {}),
+      OR: [
+        { status: "Failed" as any },
+        { errorCount: { gt: 0 } },
+        { undoStatus: { in: ["Undone", "UndoFailed", "Blocked"] as any } },
+      ],
+    },
+    select: {
+      entity: true,
+      status: true,
+      undoStatus: true,
+      fileName: true,
+      totalRows: true,
+      successCount: true,
+      errorCount: true,
+      completedAt: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: 3,
+  })
+}
+
+async function buildImportCorrectionPlanAnswer(request: AuthenticatedRequest, message: string) {
+  const issue = summarizeUserIssue(message)
+  const permissionError = assertReadPermission(request, IMPORT_READ_PERMISSIONS, "import status data")
+  const problemJobs = permissionError ? [] : await findRecentImportProblemJobs(request, message)
+  const jobLines = problemJobs.length
+    ? problemJobs.map((job) => {
+        const completed = job.completedAt ? job.completedAt.toISOString().slice(0, 10) : "not completed"
+        return `- ${job.entity} ${job.status}, undo ${job.undoStatus}: ${job.fileName} (${job.successCount ?? 0} succeeded, ${job.errorCount ?? 0} errors, ${job.totalRows ?? 0} total rows, completed ${completed})`
+      })
+    : permissionError
+      ? [`- ${permissionError}`]
+    : ["- I did not find recent import jobs with failed status, error rows, or undo activity for the requested scope."]
+
+  return [
+    "Import correction plan draft:",
+    "",
+    "Import context:",
+    `- ${issue}`,
+    "",
+    "Recent import evidence found:",
+    ...jobLines,
+    "",
+    "Correction steps:",
+    "1. Download or open the failed-row error CSV for the import job.",
+    "2. Correct only the failed rows and preserve the original column headers.",
+    "3. Confirm required lookup values exist in CRM before re-upload.",
+    "4. Re-upload the corrected failed-row file as a new import attempt.",
+    "5. Review the new import job for remaining errors before considering the import complete.",
+    "",
+    "Safety checks:",
+    "- Do not overwrite existing nonblank values unless the import is intentionally updating them.",
+    "- Keep the original file, failed-row file, and corrected file separate for audit clarity.",
+    "- If the import updated existing records, review undo limitations before proceeding.",
+    "",
+    "Status: Draft only. I did not validate, re-upload, run, or undo an import.",
+  ].join("\n")
+}
+
+function buildReconciliationHandoffAnswer(message: string) {
+  const issue = summarizeUserIssue(message)
+
+  return [
+    "Reconciliation exception handoff draft:",
+    "",
+    "Exception summary:",
+    `- ${issue}`,
+    "",
+    "Facts to verify:",
+    "- Deposit/payment date and vendor or distributor.",
+    "- Account/customer name and any external identifiers.",
+    "- Deposit usage, commission, and commission rate.",
+    "- Candidate revenue schedule number, schedule date, and remaining balance.",
+    "- Whether this is exact match, partial payment, grouped allocation, variance, or true exception.",
+    "",
+    "Recommended owner:",
+    "- Accounting or reconciliation reviewer, with CRM admin support if lookup data appears incomplete.",
+    "",
+    "Next review step:",
+    "- Confirm the candidate records and impact before applying any match or adjustment in CRM.",
+    "",
+    "Status: Draft only. I did not match, unmatch, finalize, or change financial state.",
+  ].join("\n")
+}
+
+function buildMatchReviewPreviewAnswer(message: string) {
+  const issue = summarizeUserIssue(message)
+
+  return [
+    "Match review preview:",
+    "",
+    "Candidate context:",
+    `- ${issue}`,
+    "",
+    "Review checklist:",
+    "1. Confirm account/customer identity, including legal name and external IDs.",
+    "2. Confirm vendor/distributor and product context.",
+    "3. Compare deposit usage, commission, and commission rate to the schedule balance.",
+    "4. Check whether the match is exact, partial, grouped, or variance-driven.",
+    "5. Confirm downstream effects: actual usage, actual commission, schedule status, and any variance/flex handling.",
+    "",
+    "Risk flags:",
+    "- Multiple plausible schedules.",
+    "- Different commission rates in a bundle.",
+    "- Missing account/product identifiers.",
+    "- Overage outside tolerance or negative commission handling.",
+    "",
+    "Status: Preview only. I did not apply the match or create adjustments.",
+  ].join("\n")
+}
+
+function buildClientFollowUpDraftAnswer(message: string) {
+  const issue = summarizeUserIssue(message)
+
+  return [
+    "Client follow-up draft:",
+    "",
+    "Hi [Name],",
+    "",
+    `Quick update: we reviewed ${sentenceFragment(issue)}. The current bot workflow is being handled in a controlled review mode so we can confirm the right records, evidence, and next steps before any CRM or financial changes are made.`,
+    "",
+    "Next, we will confirm the related CRM context, review any import or reconciliation evidence, and identify whether this is ready for normal processing or needs a support/admin review.",
+    "",
+    "We will follow up with the specific finding and recommended action after that review is complete.",
+    "",
+    "Status: Draft only. I did not send this message.",
   ].join("\n")
 }
 
@@ -279,17 +818,28 @@ async function buildImportStatusAnswer(request: AuthenticatedRequest, message: s
       ? (suggested.entity as DataEntity)
       : undefined
   const status = typeof suggested.status === "string" ? suggested.status : undefined
+  const failedLike = status === "Failed"
 
   const jobs = await prisma.importJob.findMany({
     where: {
       tenantId: request.user.tenantId,
       ...(entity ? { entity } : {}),
-      ...(status ? { status: status as any } : {}),
+      ...(status && !failedLike ? { status: status as any } : {}),
+      ...(failedLike
+        ? {
+            OR: [
+              { status: "Failed" as any },
+              { errorCount: { gt: 0 } },
+              { undoStatus: { in: ["Undone", "UndoFailed", "Blocked"] as any } },
+            ],
+          }
+        : {}),
     },
     select: {
       id: true,
       entity: true,
       status: true,
+      undoStatus: true,
       fileName: true,
       totalRows: true,
       successCount: true,
@@ -302,16 +852,22 @@ async function buildImportStatusAnswer(request: AuthenticatedRequest, message: s
   })
 
   if (jobs.length === 0) {
-    return `I did not find recent imports matching ${entity ?? "any entity"} / ${status ?? "any status"}.`
+    return [
+      `I did not find recent imports matching ${entity ?? "any entity"} / ${status ?? "any status"}.`,
+      "",
+      "Note: for import troubleshooting, I now treat a failed import as any recent import with status Failed, error rows, or undo activity. If you expected a result, confirm the current app environment and tenant match the one where the import was run.",
+    ].join("\n")
   }
 
   return [
-    `Recent import status${entity ? ` for ${entity}` : ""}${status ? ` with status ${status}` : ""}:`,
+    `Recent import status${entity ? ` for ${entity}` : ""}${failedLike ? " with errors or undo activity" : status ? ` with status ${status}` : ""}:`,
     "",
     ...jobs.map(
       (job) =>
-        `- ${job.entity} ${job.status}: ${job.fileName ?? "unnamed file"} (${job.successCount ?? 0} succeeded, ${job.errorCount ?? 0} errors, ${job.totalRows ?? 0} total rows)`,
+        `- ${job.entity} ${job.status}, undo ${job.undoStatus}: ${job.fileName ?? "unnamed file"} (${job.successCount ?? 0} succeeded, ${job.errorCount ?? 0} errors, ${job.totalRows ?? 0} total rows)`,
     ),
+    "",
+    "Interpretation: completed imports can still need correction when they have error rows. An undone import should be called out separately from a failed import.",
   ].join("\n")
 }
 
@@ -473,6 +1029,290 @@ async function buildScheduleLookupAnswer(request: AuthenticatedRequest, message:
   ].join("\n")
 }
 
+function isSupervisedTicketActionCommand(message: string) {
+  const normalized = message.toLowerCase()
+  return normalized.includes("confirm action") && normalized.includes("ticket")
+}
+
+function extractUuid(message: string) {
+  return message.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ?? null
+}
+
+function cleanTicketIssue(message: string) {
+  const cleaned = message
+    .replace(/\bconfirm action\b/gi, "")
+    .replace(/\b(create|open)\s+(a\s+)?(test\s+)?ticket\b/gi, "")
+    .replace(/^[\s:,-]*(for|about|called)\b/i, "")
+    .replace(/^[\s:,-]+/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  return (cleaned || "OpenClaw supervised action test ticket").slice(0, 180)
+}
+
+async function buildSupervisedTicketActionResponse(args: {
+  request: AuthenticatedRequest
+  requestId: string
+  conversationId: string
+  messages: ChatMessage[]
+  userMessage: string
+}) {
+  const normalized = args.userMessage.toLowerCase()
+
+  if (!isSupervisedTicketActionCommand(args.userMessage)) return null
+  if (!/\b(create|open|close|reopen|list)\b/.test(normalized)) return null
+
+  if (!openClawActionsEnabled()) {
+    await logChatEvent({
+      request: args.request,
+      requestId: args.requestId,
+      conversationId: args.conversationId,
+      status: "success",
+      messageCount: args.messages.length,
+      errorCode: "openclaw_actions_disabled",
+      source: "crm_test_action",
+      intent: "action.supervised_ticket_test",
+    })
+
+    return NextResponse.json({
+      data: {
+        conversationId: args.conversationId,
+        source: "crm_test_action" satisfies ChatResponseSource,
+        intent: "action.supervised_ticket_test",
+        message: {
+          role: "assistant",
+          content:
+            "Supervised bot actions are currently disabled. Set OPENCLAW_ACTIONS_ENABLED=true, then retry with `confirm action` in the prompt.",
+        },
+      },
+      requestId: args.requestId,
+    })
+  }
+
+  if (/\blist\b/.test(normalized)) {
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        tenantId: args.request.user.tenantId,
+        issue: { startsWith: TEST_ACTION_TICKET_PREFIX },
+        notes: { contains: TEST_ACTION_NOTE_MARKER },
+      },
+      select: { id: true, issue: true, status: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    })
+
+    await logChatEvent({
+      request: args.request,
+      requestId: args.requestId,
+      conversationId: args.conversationId,
+      status: "success",
+      messageCount: args.messages.length,
+      source: "crm_test_action",
+      intent: "action.list_test_tickets",
+    })
+
+    return NextResponse.json({
+      data: {
+        conversationId: args.conversationId,
+        source: "crm_test_action" satisfies ChatResponseSource,
+        intent: "action.list_test_tickets",
+        message: {
+          role: "assistant",
+          content:
+            tickets.length === 0
+              ? "I did not find any supervised bot test tickets."
+              : [
+                  "Recent supervised bot test tickets:",
+                  "",
+                  ...tickets.map(
+                    (ticket) =>
+                      `- ${ticket.id} - ${ticket.status} - ${ticket.issue} (${ticket.createdAt.toISOString().slice(0, 10)})`,
+                  ),
+                ].join("\n"),
+        },
+      },
+      requestId: args.requestId,
+    })
+  }
+
+  if (/\b(create|open)\b/.test(normalized) && !/\breopen\b/.test(normalized)) {
+    const issue = cleanTicketIssue(args.userMessage)
+    const ticket = await prisma.ticket.create({
+      data: {
+        tenantId: args.request.user.tenantId,
+        issue: `${TEST_ACTION_TICKET_PREFIX} ${issue}`,
+        notes: [
+          TEST_ACTION_NOTE_MARKER,
+          "Scope: test ticket only.",
+          `Conversation: ${args.conversationId}`,
+          `Requested by: ${args.request.user.email}`,
+          `Original prompt: ${args.userMessage}`,
+        ].join("\n"),
+        status: TicketStatus.Open,
+        priority: TicketPriority.Medium,
+        severity: TicketSeverity.Minor,
+        createdById: args.request.user.id ?? null,
+      },
+      select: { id: true, issue: true, status: true, createdAt: true },
+    })
+
+    await logAudit({
+      userId: args.request.user.id,
+      tenantId: args.request.user.tenantId,
+      action: AuditAction.Create,
+      entityName: "Ticket",
+      entityId: ticket.id,
+      requestId: args.requestId,
+      ipAddress: getClientIP(args.request),
+      userAgent: getUserAgent(args.request),
+      metadata: {
+        actorType: "user",
+        botProvider: "openclaw",
+        source: "crm_test_action",
+        action: "create_test_ticket",
+      },
+    })
+
+    await logChatEvent({
+      request: args.request,
+      requestId: args.requestId,
+      conversationId: args.conversationId,
+      status: "success",
+      messageCount: args.messages.length,
+      source: "crm_test_action",
+      intent: "action.create_test_ticket",
+    })
+
+    return NextResponse.json({
+      data: {
+        conversationId: args.conversationId,
+        source: "crm_test_action" satisfies ChatResponseSource,
+        intent: "action.create_test_ticket",
+        action: {
+          type: "ticket.created",
+          ticketId: ticket.id,
+          status: ticket.status,
+          persisted: true,
+        },
+        message: {
+          role: "assistant",
+          content: [
+            "Created a supervised bot test ticket.",
+            "",
+            `- Ticket ID: ${ticket.id}`,
+            `- Status: ${ticket.status}`,
+            `- Issue: ${ticket.issue}`,
+            "",
+            `To close it, send: confirm action close test ticket ${ticket.id}`,
+          ].join("\n"),
+        },
+      },
+      requestId: args.requestId,
+    })
+  }
+
+  if (/\b(close|reopen)\b/.test(normalized)) {
+    const ticketId = extractUuid(args.userMessage)
+    if (!ticketId) {
+      return NextResponse.json({
+        data: {
+          conversationId: args.conversationId,
+          source: "crm_test_action" satisfies ChatResponseSource,
+          intent: "action.update_test_ticket",
+          message: {
+            role: "assistant",
+            content: "Send the supervised bot test ticket UUID to close or reopen it.",
+          },
+        },
+        requestId: args.requestId,
+      })
+    }
+
+    const existing = await prisma.ticket.findFirst({
+      where: {
+        id: ticketId,
+        tenantId: args.request.user.tenantId,
+        issue: { startsWith: TEST_ACTION_TICKET_PREFIX },
+        notes: { contains: TEST_ACTION_NOTE_MARKER },
+      },
+      select: { id: true, issue: true },
+    })
+
+    if (!existing) {
+      return NextResponse.json({
+        data: {
+          conversationId: args.conversationId,
+          source: "crm_test_action" satisfies ChatResponseSource,
+          intent: "action.update_test_ticket",
+          message: {
+            role: "assistant",
+            content: "I only update tickets created by supervised bot test actions. I did not find a matching test ticket.",
+          },
+        },
+        requestId: args.requestId,
+      })
+    }
+
+    const reopening = /\breopen\b/.test(normalized)
+    const updated = await prisma.ticket.update({
+      where: { id: existing.id },
+      data: {
+        status: reopening ? TicketStatus.Open : TicketStatus.Closed,
+        closedAt: reopening ? null : new Date(),
+      },
+      select: { id: true, issue: true, status: true },
+    })
+
+    await logAudit({
+      userId: args.request.user.id,
+      tenantId: args.request.user.tenantId,
+      action: AuditAction.Update,
+      entityName: "Ticket",
+      entityId: updated.id,
+      requestId: args.requestId,
+      ipAddress: getClientIP(args.request),
+      userAgent: getUserAgent(args.request),
+      metadata: {
+        actorType: "user",
+        botProvider: "openclaw",
+        source: "crm_test_action",
+        action: reopening ? "reopen_test_ticket" : "close_test_ticket",
+      },
+    })
+
+    await logChatEvent({
+      request: args.request,
+      requestId: args.requestId,
+      conversationId: args.conversationId,
+      status: "success",
+      messageCount: args.messages.length,
+      source: "crm_test_action",
+      intent: reopening ? "action.reopen_test_ticket" : "action.close_test_ticket",
+    })
+
+    return NextResponse.json({
+      data: {
+        conversationId: args.conversationId,
+        source: "crm_test_action" satisfies ChatResponseSource,
+        intent: reopening ? "action.reopen_test_ticket" : "action.close_test_ticket",
+        action: {
+          type: reopening ? "ticket.reopened" : "ticket.closed",
+          ticketId: updated.id,
+          status: updated.status,
+          persisted: true,
+        },
+        message: {
+          role: "assistant",
+          content: `${reopening ? "Reopened" : "Closed"} supervised bot test ticket ${updated.id}. Current status: ${updated.status}.`,
+        },
+      },
+      requestId: args.requestId,
+    })
+  }
+
+  return null
+}
+
 async function buildLocalReadOnlyReply(request: AuthenticatedRequest, message: string) {
   const resolution = resolveIntentFromMessage({ message })
   const intent = resolution.primaryMatch?.intent ?? null
@@ -490,11 +1330,21 @@ async function buildLocalReadOnlyReply(request: AuthenticatedRequest, message: s
       return { reply: await buildDepositLookupAnswer(request, message), intent }
     case "lookup.revenue_schedule_search":
       return { reply: await buildScheduleLookupAnswer(request, message), intent }
+    case "action.draft_support_ticket":
+      return { reply: buildDraftSupportTicketAnswer(message), intent }
+    case "action.draft_import_correction_plan":
+      return { reply: await buildImportCorrectionPlanAnswer(request, message), intent }
+    case "action.draft_reconciliation_handoff":
+      return { reply: buildReconciliationHandoffAnswer(message), intent }
+    case "action.preview_match_review":
+      return { reply: buildMatchReviewPreviewAnswer(message), intent }
+    case "action.draft_client_follow_up":
+      return { reply: buildClientFollowUpDraftAnswer(message), intent }
     case "action.preview_write_request":
       return {
         intent,
         reply:
-          "I can help draft the review steps, but v1 is read-only. I will not create tickets, update schedules, run imports, or apply reconciliation changes. Send the issue details and I can prepare a non-persistent handoff summary for a human to review.",
+          "I can help draft review steps or a non-persistent handoff, but I will not save tickets, update schedules, run imports, or apply reconciliation changes. Send the issue details and I can prepare draft copy for a human to review.",
       }
     case "insight.accounts_with_issues":
     case "insight.variance_summary":
@@ -582,6 +1432,7 @@ export async function POST(request: NextRequest) {
   return withAuth(request, async (authenticatedRequest) => {
     const requestId = crypto.randomUUID()
     const chatCompletionsUrl = resolveChatCompletionsUrl()
+    const gatewayWsUrl = resolveGatewayWsUrl()
     const gatewayToken = resolveGatewayToken()
 
     const body = (await request.json().catch(() => null)) as OpenClawChatBody | null
@@ -608,7 +1459,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!chatCompletionsUrl || !gatewayToken) {
+    const supervisedActionResponse = await buildSupervisedTicketActionResponse({
+      request: authenticatedRequest,
+      requestId,
+      conversationId,
+      messages,
+      userMessage: lastMessage.content,
+    })
+    if (supervisedActionResponse) return supervisedActionResponse
+
+    if ((!chatCompletionsUrl && !gatewayWsUrl) || !gatewayToken) {
       return buildLocalFallbackResponse({
         request: authenticatedRequest,
         requestId,
@@ -623,6 +1483,50 @@ export async function POST(request: NextRequest) {
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     try {
+      if (gatewayWsUrl) {
+        const reply = await askOpenClawWebSocketGateway({
+          wsUrl: gatewayWsUrl,
+          token: gatewayToken,
+          request: authenticatedRequest,
+          conversationId,
+          messages,
+          signal: controller.signal,
+        })
+
+        await logChatEvent({
+          request: authenticatedRequest,
+          requestId,
+          conversationId,
+          status: "success",
+          messageCount: messages.length,
+          responseStatus: 101,
+          source: "openclaw_gateway",
+        })
+
+        return NextResponse.json({
+          data: {
+            conversationId,
+            source: "openclaw_gateway" satisfies ChatResponseSource,
+            message: {
+              role: "assistant",
+              content: reply,
+            },
+          },
+          requestId,
+        })
+      }
+
+      if (!chatCompletionsUrl) {
+        return buildLocalFallbackResponse({
+          request: authenticatedRequest,
+          requestId,
+          conversationId,
+          messages,
+          userMessage: lastMessage.content,
+          errorCode: "openclaw_not_configured",
+        })
+      }
+
       const upstreamResponse = await fetch(chatCompletionsUrl, {
         method: "POST",
         signal: controller.signal,

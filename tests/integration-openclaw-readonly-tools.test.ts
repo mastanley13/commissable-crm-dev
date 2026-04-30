@@ -107,7 +107,7 @@ integrationTest("OPENCLAW-TOOLS-01C: capability resolver handles preview-only an
     }
   }>(previewResponse)
 
-  assert.equal(previewJson.data?.primaryMatch?.intent, "action.preview_write_request")
+  assert.equal(previewJson.data?.primaryMatch?.intent, "action.draft_support_ticket")
   assert.equal(previewJson.data?.primaryMatch?.availability, "preview_only")
   assert.equal(previewJson.data?.primaryMatch?.handlingMode, "preview_only")
 

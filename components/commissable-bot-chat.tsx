@@ -54,21 +54,48 @@ const STATUS_ENDPOINT = "/api/openclaw/status"
 
 const topicGroups: TopicGroup[] = [
   {
+    role: "Demo",
+    description: "Safe meeting prompts",
+    icon: ClipboardList,
+    topics: [
+      {
+        label: "top usage",
+        prompt: "What are the top 5 usage accounts for March 2026?",
+      },
+      {
+        label: "failed imports",
+        prompt: "What recent imports failed?",
+      },
+      {
+        label: "ticket draft",
+        prompt: "Draft a support ticket for this failed revenue schedule import: rows failed validation and need accounting review.",
+      },
+      {
+        label: "handoff draft",
+        prompt: "Draft a reconciliation handoff for this unmatched payment: vendor amount does not clearly match the expected schedule balance.",
+      },
+      {
+        label: "match preview",
+        prompt: "Preview the match review for this deposit line before applying it: compare account, vendor, usage, commission, and rate.",
+      },
+    ],
+  },
+  {
     role: "Sales",
     description: "Pipeline and customer motion",
     icon: Building2,
     topics: [
       {
         label: "accounts",
-        prompt: "Help me review account follow-up priorities. Keep the answer high level and do not include restricted data.",
+        prompt: "Look up account context for ACC Business.",
       },
       {
         label: "opportunities",
-        prompt: "Help me think through opportunity next steps and what information I should check in the CRM.",
+        prompt: "Look up account context for ACC Business and summarize related opportunity counts.",
       },
       {
         label: "reporting",
-        prompt: "Help me outline a sales reporting question I can answer from Commissable without exposing customer details.",
+        prompt: "What are the top 5 usage accounts for March 2026?",
       },
     ],
   },
@@ -79,15 +106,15 @@ const topicGroups: TopicGroup[] = [
     topics: [
       {
         label: "deposits",
-        prompt: "Help me prepare to review a deposit import or deposit matching issue in Commissable.",
+        prompt: "Find deposits for ACC Business.",
       },
       {
         label: "reconciliation",
-        prompt: "Help me summarize the reconciliation checks I should perform before escalating an unmatched payment.",
+        prompt: "Give me a reconciliation summary.",
       },
       {
         label: "revenue schedules",
-        prompt: "Help me review a revenue schedule question at a workflow level without using private customer data.",
+        prompt: "Find revenue schedules for ACC Business.",
       },
     ],
   },
@@ -98,15 +125,15 @@ const topicGroups: TopicGroup[] = [
     topics: [
       {
         label: "dashboards",
-        prompt: "Help me frame a dashboard question for management review using only safe summary-level information.",
+        prompt: "Give me a reconciliation summary.",
       },
       {
         label: "reports",
-        prompt: "Help me decide which report or metric would answer this management question.",
+        prompt: "What are the top 5 usage accounts for March 2026?",
       },
       {
         label: "team activity",
-        prompt: "Help me outline what team activity signals to review in Commissable.",
+        prompt: "Draft a client follow-up note about the current reconciliation review status.",
       },
     ],
   },
@@ -117,15 +144,15 @@ const topicGroups: TopicGroup[] = [
     topics: [
       {
         label: "imports",
-        prompt: "Help me plan a safe import troubleshooting checklist for Commissable.",
+        prompt: "Draft an import correction plan for failed account rows that need a corrected CSV re-upload.",
       },
       {
         label: "users",
-        prompt: "Help me think through user access or role setup questions without listing private account details.",
+        prompt: "Draft a support ticket for this user access issue: a user cannot see reconciliation summaries.",
       },
       {
         label: "settings",
-        prompt: "Help me identify which settings area may apply to this Commissable admin task.",
+        prompt: "Draft a support ticket for this settings issue: import mapping needs admin review.",
       },
     ],
   },
@@ -136,11 +163,11 @@ const topicGroups: TopicGroup[] = [
     topics: [
       {
         label: "tickets",
-        prompt: "Help me draft the information needed for a useful support ticket in Commissable.",
+        prompt: "Draft a support ticket for this CRM issue: describe the problem, evidence needed, and next step.",
       },
       {
         label: "customer follow-up",
-        prompt: "Help me prepare a customer follow-up note using neutral language and no restricted data.",
+        prompt: "Draft a client follow-up note about the current import cleanup review.",
       },
     ],
   },
