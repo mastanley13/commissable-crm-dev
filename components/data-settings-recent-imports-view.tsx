@@ -306,6 +306,7 @@ export function DataSettingsRecentImportsView({
                     job.status === "Completed" &&
                     job.undoStatus === "Undoable" &&
                     job.trackedRecordCount > 0
+                  const isUndone = job.undoStatus === "Undone"
                   return (
                   <tr key={job.id}>
                     <td className="px-3 py-2 text-gray-800">
@@ -351,7 +352,10 @@ export function DataSettingsRecentImportsView({
                             Undo
                           </button>
                         ) : null}
-                        {(!job.errorCount || job.errorCount <= 0) && !canOpenUndo ? (
+                        {isUndone ? (
+                          <span className="text-xs font-medium text-gray-600">Undone</span>
+                        ) : null}
+                        {(!job.errorCount || job.errorCount <= 0) && !canOpenUndo && !isUndone ? (
                           <span className="text-xs text-gray-400">-</span>
                         ) : null}
                       </div>
