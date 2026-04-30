@@ -115,6 +115,7 @@ interface ProductLookup {
   id: string
   distributorAccountId: string | null
   vendorAccountId: string | null
+  salesforceId: string | null
   productCode: string
   productNameHouse: string
   productNameVendor: string | null
@@ -169,6 +170,7 @@ interface ImportContext {
   contactIdByMatchKeyCache: Map<string, string | null>
   contactBySalesforceIdCache: Map<string, ContactLookup | null>
   productByCodeCache: Map<string, ProductLookup | null>
+  productBySalesforceIdCache: Map<string, ProductLookup | null>
   enabledRevenueTypeCodeByNormalizedCode: Map<string, string>
   enabledRevenueTypeCodeByNormalizedLabel: Map<string, string>
   depositTransactionState: DepositTransactionImportState | null
@@ -265,6 +267,24 @@ function parseOptionalBoolean(value: string): { value: boolean | null; valid: bo
     return { value: false, valid: true }
   }
   return { value: null, valid: false }
+}
+
+function parseOptionalProductStatus(value: string): { value: boolean | null; valid: boolean } {
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) {
+    return { value: null, valid: true }
+  }
+  if (["active", "enabled"].includes(trimmed)) {
+    return { value: true, valid: true }
+  }
+  if (["inactive", "disabled", "archived"].includes(trimmed)) {
+    return { value: false, valid: true }
+  }
+  return parseOptionalBoolean(value)
+}
+
+function generateProductCode() {
+  return (`AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`).slice(0, 64)
 }
 
 function isValidOpportunityProductStatus(value: unknown): value is OpportunityProductStatus {
@@ -1016,6 +1036,7 @@ async function getProductByCode(context: ImportContext, productCode: string): Pr
       id: true,
       distributorAccountId: true,
       vendorAccountId: true,
+      salesforceId: true,
       productCode: true,
       productNameHouse: true,
       productNameVendor: true,
@@ -1044,6 +1065,7 @@ async function getProductByCode(context: ImportContext, productCode: string): Pr
         id: product.id,
         distributorAccountId: product.distributorAccountId,
         vendorAccountId: product.vendorAccountId,
+        salesforceId: product.salesforceId,
         productCode: product.productCode,
         productNameHouse: product.productNameHouse,
         productNameVendor: product.productNameVendor,
@@ -1067,6 +1089,84 @@ async function getProductByCode(context: ImportContext, productCode: string): Pr
       }
     : null
   context.productByCodeCache.set(key, result)
+  return result
+}
+
+async function getProductBySalesforceId(
+  context: ImportContext,
+  salesforceId: string
+): Promise<ProductLookup | null> {
+  const normalizedSalesforceId = normalizeSalesforceIdInput(salesforceId)
+  if (!normalizedSalesforceId) {
+    return null
+  }
+  const key = normalizedSalesforceId.toLowerCase()
+  if (context.productBySalesforceIdCache.has(key)) {
+    return context.productBySalesforceIdCache.get(key) ?? null
+  }
+
+  const product = await prisma.product.findFirst({
+    where: {
+      tenantId: context.tenantId,
+      salesforceId: { equals: normalizedSalesforceId, mode: "insensitive" }
+    },
+    select: {
+      id: true,
+      distributorAccountId: true,
+      vendorAccountId: true,
+      salesforceId: true,
+      productCode: true,
+      productNameHouse: true,
+      productNameVendor: true,
+      description: true,
+      revenueType: true,
+      priceEach: true,
+      commissionPercent: true,
+      productFamilyHouse: true,
+      productSubtypeHouse: true,
+      productFamilyVendor: true,
+      productSubtypeVendor: true,
+      productNameDistributor: true,
+      partNumberVendor: true,
+      partNumberDistributor: true,
+      distributorProductFamily: true,
+      distributorProductSubtype: true,
+      productDescriptionVendor: true,
+      productDescriptionDistributor: true,
+      distributor: { select: { accountName: true } },
+      vendor: { select: { accountName: true } }
+    }
+  })
+
+  const result = product
+    ? {
+        id: product.id,
+        distributorAccountId: product.distributorAccountId,
+        vendorAccountId: product.vendorAccountId,
+        salesforceId: product.salesforceId,
+        productCode: product.productCode,
+        productNameHouse: product.productNameHouse,
+        productNameVendor: product.productNameVendor,
+        description: product.description,
+        revenueType: product.revenueType,
+        priceEach: product.priceEach,
+        commissionPercent: product.commissionPercent,
+        productFamilyHouse: product.productFamilyHouse,
+        productSubtypeHouse: product.productSubtypeHouse,
+        productFamilyVendor: product.productFamilyVendor,
+        productSubtypeVendor: product.productSubtypeVendor,
+        productNameDistributor: product.productNameDistributor,
+        partNumberVendor: product.partNumberVendor,
+        partNumberDistributor: product.partNumberDistributor,
+        distributorProductFamily: product.distributorProductFamily,
+        distributorProductSubtype: product.distributorProductSubtype,
+        productDescriptionVendor: product.productDescriptionVendor,
+        productDescriptionDistributor: product.productDescriptionDistributor,
+        distributorAccountName: product.distributor?.accountName ?? null,
+        vendorAccountName: product.vendor?.accountName ?? null
+      }
+    : null
+  context.productBySalesforceIdCache.set(key, result)
   return result
 }
 
@@ -2473,8 +2573,37 @@ async function importProductRow(
   values: Record<string, string>,
   options: ImportOptions
 ): Promise<RowOutcome> {
-  const productCode = asTrimmedString(values.productCode)
-  const existing = await getProductByCode(context, productCode)
+  const productCodeInput = asTrimmedString(values.productCode)
+  const salesforceId = normalizeSalesforceIdInput(values.salesforceId)
+  if (salesforceId && !isValidSalesforceId(salesforceId)) {
+    return {
+      status: "error",
+      failure: {
+        field: "salesforceId",
+        errorType: "validation",
+        message: "Salesforce Product ID must be 15 or 18 alphanumeric characters."
+      }
+    }
+  }
+
+  const existingByCode = productCodeInput ? await getProductByCode(context, productCodeInput) : null
+  const existingBySalesforceId = salesforceId
+    ? await getProductBySalesforceId(context, salesforceId)
+    : null
+  if (existingByCode && existingBySalesforceId && existingByCode.id !== existingBySalesforceId.id) {
+    return {
+      status: "error",
+      failure: {
+        field: "salesforceId",
+        errorType: "business_rule",
+        message:
+          `Salesforce Product ID "${salesforceId}" belongs to "${existingBySalesforceId.productNameHouse}", ` +
+          `but Product Code "${productCodeInput}" matches "${existingByCode.productNameHouse}".`
+      }
+    }
+  }
+
+  const existing = existingByCode ?? existingBySalesforceId
   if (existing && !options.upsertExisting) {
     return { status: "skipped" }
   }
@@ -2643,14 +2772,14 @@ async function importProductRow(
     }
   }
 
-  const activeValue = parseOptionalBoolean(asTrimmedString(values.isActive))
+  const activeValue = parseOptionalProductStatus(asTrimmedString(values.isActive))
   if (!activeValue.valid) {
     return {
       status: "error",
       failure: {
         field: "isActive",
         errorType: "validation",
-        message: `Is Active "${values.isActive}" is invalid. Use true/false.`
+        message: `Status "${values.isActive}" is invalid. Use Active/Inactive or true/false.`
       }
     }
   }
@@ -2697,7 +2826,8 @@ async function importProductRow(
   }
 
   const payload = {
-    productCode,
+    salesforceId,
+    productCode: productCodeInput || existing?.productCode || generateProductCode(),
     productNameHouse,
     revenueType: resolvedRevenueType,
     productNameVendor: canonicalizeMultiValueString(asOptionalString(values.productNameVendor), {
@@ -2733,7 +2863,10 @@ async function importProductRow(
       where: { id: existing.id },
       data: payload
     })
-    context.productByCodeCache.delete(normalizeLookupKey(productCode))
+    context.productByCodeCache.delete(normalizeLookupKey(payload.productCode))
+    if (salesforceId) {
+      context.productBySalesforceIdCache.delete(salesforceId.toLowerCase())
+    }
     return { status: "success", mutations: [updatedMutation("Product", existing.id)] }
   } else {
     const created = await prisma.product.create({
@@ -2744,7 +2877,10 @@ async function importProductRow(
       },
       select: { id: true }
     })
-    context.productByCodeCache.delete(normalizeLookupKey(productCode))
+    context.productByCodeCache.delete(normalizeLookupKey(payload.productCode))
+    if (salesforceId) {
+      context.productBySalesforceIdCache.delete(salesforceId.toLowerCase())
+    }
     return { status: "success", mutations: [createdMutation("Product", created.id)] }
   }
 }
@@ -3062,6 +3198,7 @@ export async function POST(request: NextRequest) {
       contactIdByMatchKeyCache: new Map(),
       contactBySalesforceIdCache: new Map(),
       productByCodeCache: new Map(),
+      productBySalesforceIdCache: new Map(),
       enabledRevenueTypeCodeByNormalizedCode: new Map(
         revenueTypeOptions.map(option => [normalizeLookupKey(option.value), option.value])
       ),

@@ -650,6 +650,7 @@ model OpportunityRole {
 model Product {
   id                            String               @id @default(uuid()) @db.Uuid
   tenantId                      String               @db.Uuid
+  salesforceId                  String?              @db.VarChar(18)
   productCode                   String
   productNameHouse              String
   productNameVendor             String?
@@ -689,6 +690,7 @@ model Product {
   depositLineItems              DepositLineItem[]
 
   @@unique([tenantId, productCode])
+  @@unique([tenantId, salesforceId])
   @@index([tenantId, isActive])
 }
 

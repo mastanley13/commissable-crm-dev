@@ -22,6 +22,7 @@ import { RevenueBulkApplyPanel } from '@/components/revenue-bulk-apply-panel'
 const PRODUCT_FILTER_OPTIONS = [
   { id: 'productNameVendor', label: 'Other - Product Name' },
   { id: 'productNameHouse', label: 'House - Product Name' },
+  { id: 'salesforceId', label: 'Salesforce Product ID' },
   { id: 'distributorName', label: 'Distributor Name' },
   { id: 'vendorName', label: 'Vendor Name' },
   { id: 'partNumberVendor', label: 'Other - Part Number' },
@@ -84,6 +85,16 @@ const BASE_COLUMNS: Column[] = [
     maxWidth: 360,
     sortable: true,
     accessor: 'productNameHouse',
+  },
+  {
+    id: 'salesforceId',
+    label: 'Salesforce Product ID',
+    width: 200,
+    minWidth: calculateMinWidth({ label: 'Salesforce Product ID', type: 'text', sortable: true }),
+    maxWidth: 280,
+    sortable: true,
+    accessor: 'salesforceId',
+    hidden: true,
   },
   {
     id: 'productDescriptionHouse',
@@ -183,6 +194,7 @@ interface ProductRow {
   id: string
   select?: boolean
   active: boolean
+  salesforceId?: string | null
   distributorId?: string | null
   distributorName: string
   vendorId?: string | null

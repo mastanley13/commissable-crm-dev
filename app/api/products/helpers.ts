@@ -16,6 +16,7 @@ export interface ProductListRow {
   id: string
   select: boolean
   active: boolean
+  salesforceId?: string | null
   distributorId?: string | null
   productNameHouse: string
   distributorName: string
@@ -96,6 +97,7 @@ export function mapProductToRow(product: ProductWithRelations): ProductListRow {
     id: product.id,
     select: false,
     active: Boolean(product.isActive),
+    salesforceId: product.salesforceId ?? null,
     distributorId: product.distributor?.id ?? null,
     productNameHouse: product.productNameHouse ?? "",
     distributorName: product.distributor?.accountName ?? "",

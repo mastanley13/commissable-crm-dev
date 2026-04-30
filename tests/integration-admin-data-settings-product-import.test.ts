@@ -267,3 +267,49 @@ integrationTest("ADMIN-IMPORT-PROD-03: product import persists extended catalog 
   assert.equal(product?.distributorProductFamily, "Distributor Family")
   assert.equal(product?.distributorProductSubtype, "Distributor Subtype")
 })
+
+integrationTest("ADMIN-IMPORT-PROD-04: product import accepts Salesforce Product ID, Status, and no Product Code", async ctx => {
+  const routeModule = await import("../app/api/admin/data-settings/imports/route")
+  const POST = (routeModule as any).POST ?? (routeModule as any).default?.POST
+  assert.equal(typeof POST, "function")
+
+  const dbModule = await import("../lib/db")
+  const prisma = (dbModule as any).prisma ?? (dbModule as any).default?.prisma
+
+  const response = await POST(
+    makeImportRequest({
+      sessionToken: ctx.sessionToken,
+      mapping: {
+        "Salesforce Product ID": "salesforceId",
+        "Product Name (House)": "productNameHouse",
+        "Revenue Type": "revenueType",
+        Status: "isActive"
+      },
+      rows: [
+        {
+          "Salesforce Product ID": "01tR7000005W693IAC",
+          "Product Name (House)": "Salesforce ID Product",
+          "Revenue Type": "MRC_House",
+          Status: "Inactive"
+        }
+      ]
+    })
+  )
+
+  assertStatus(response, 200)
+  const payload = await readJson<{ data?: { successRows: number; errorRows: number } }>(response)
+  assert.equal(payload.data?.successRows, 1)
+  assert.equal(payload.data?.errorRows, 0)
+
+  const product = await prisma.product.findFirst({
+    where: { tenantId: ctx.tenantId, salesforceId: "01tR7000005W693IAC" },
+    select: {
+      productCode: true,
+      isActive: true
+    }
+  })
+
+  assert.ok(product?.productCode)
+  assert.match(product.productCode, /^AUTO-/)
+  assert.equal(product.isActive, false)
+})

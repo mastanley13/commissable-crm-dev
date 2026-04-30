@@ -8,6 +8,7 @@ import { ensureNoneDirectDistributorAccount } from "@/lib/none-direct-distributo
 import { isEnabledRevenueType } from "@/lib/server-revenue-types"
 import { resolveOtherSource, resolveOtherValue } from "@/lib/other-field"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 
 const PRODUCT_MUTATION_PERMISSIONS = [
   "products.update",
@@ -149,6 +150,7 @@ export async function GET(request: NextRequest, { params }: { params: { productI
 
       const data = {
         id: product.id,
+        salesforceId: product.salesforceId,
         productCode: product.productCode,
         productNameHouse: product.productNameHouse,
         productNameVendor: product.productNameVendor,
@@ -238,6 +240,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
         where: { id: productId, tenantId },
         select: {
           id: true,
+          salesforceId: true,
           productCode: true,
           productNameHouse: true,
           productNameVendor: true,
@@ -281,6 +284,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           data.productNameVendor = canonicalizeMultiValueString(raw, { kind: "text" })
           hasChanges = true
         }
+      }
+
+      if ("salesforceId" in payload) {
+        const value = normalizeSalesforceIdInput(payload.salesforceId)
+        if (value && !isValidSalesforceId(value)) {
+          return NextResponse.json(
+            { error: "Salesforce Product ID must be 15 or 18 alphanumeric characters" },
+            { status: 400 }
+          )
+        }
+        data.salesforceId = value
+        hasChanges = true
       }
 
       if (typeof payload.productCode === "string") {
@@ -539,6 +554,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
       // Log updates (including activation / inactivation) to audit history
       const previousValues = {
         productCode: existing.productCode,
+        salesforceId: existing.salesforceId,
         productNameHouse: existing.productNameHouse,
         productNameVendor: existing.productNameVendor,
         partNumberVendor: (existing as any).partNumberVendor ?? null,
@@ -550,6 +566,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
 
       const newValues = {
         productCode: updated.productCode,
+        salesforceId: (updated as any).salesforceId ?? null,
         productNameHouse: updated.productNameHouse,
         productNameVendor: updated.productNameVendor,
         partNumberVendor: (updated as any).partNumberVendor ?? null,
@@ -589,8 +606,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { produc
           otherSource,
         },
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update product", error)
+      if (error?.code === "P2002") {
+        const target = Array.isArray(error?.meta?.target) ? error.meta.target.join(",") : ""
+        if (target.includes("salesforceId")) {
+          return NextResponse.json({ error: "A product with this Salesforce Product ID already exists" }, { status: 409 })
+        }
+        return NextResponse.json({ error: "A product with this product code already exists" }, { status: 409 })
+      }
       return NextResponse.json({ error: "Failed to update product" }, { status: 500 })
     }
   })

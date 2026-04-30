@@ -52,6 +52,7 @@ export interface ProductAuditLogEntry {
 
 export interface ProductDetailRecord {
   id: string
+  salesforceId: string | null
   productCode: string
   productNameHouse: string
   productNameVendor: string | null
@@ -121,6 +122,7 @@ const fieldBoxMultilineClass =
 
 interface ProductInlineForm {
   active: boolean
+  salesforceId: string
   productNameHouse: string
   productNameVendor: string
   productCode: string
@@ -209,6 +211,7 @@ function createProductInlineForm(product: ProductDetailRecord | null | undefined
   if (!product) return null
   return {
     active: Boolean(product.isActive),
+    salesforceId: product.salesforceId ?? "",
     productNameHouse: product.productNameHouse ?? "",
     productNameVendor: product.productNameVendor ?? "",
     productCode: product.productCode ?? "",
@@ -243,6 +246,10 @@ function buildProductPayload(
   }
   if ("productNameHouse" in patch) {
     payload.productNameHouse = draft.productNameHouse.trim()
+  }
+  if ("salesforceId" in patch) {
+    const value = draft.salesforceId.trim()
+    payload.salesforceId = value.length > 0 ? value : null
   }
   if ("productNameVendor" in patch) {
     const value = draft.productNameVendor.trim()
@@ -332,6 +339,10 @@ function validateProductForm(form: ProductInlineForm): Record<string, string> {
 
   if (form.productNameHouse.trim().length === 0) {
     errors.productNameHouse = "Product name is required."
+  }
+  const salesforceId = form.salesforceId.trim()
+  if (salesforceId && !/^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(salesforceId)) {
+    errors.salesforceId = "Salesforce Product ID must be 15 or 18 alphanumeric characters."
   }
   if (form.productCode.trim().length === 0) {
     errors.productCode = "Product code is required."
@@ -459,6 +470,11 @@ function ProductHeader({ product, onEdit, activeTab, onTabSelect }: ProductHeade
             <FieldRow label="House - Part Number">
               <div className={fieldBoxClass}>
                 {product.productCode || <span className="text-gray-500">--</span>}
+              </div>
+            </FieldRow>
+            <FieldRow label="Salesforce Product ID">
+              <div className={fieldBoxClass}>
+                {product.salesforceId || <span className="text-gray-500">--</span>}
               </div>
             </FieldRow>
             <FieldRow label="Distributor Name">
@@ -615,6 +631,7 @@ interface EditableProductHeaderProps {
 
   function EditableProductHeader({ product, editor, onSave, onRefresh, activeTab, onTabSelect }: EditableProductHeaderProps) {
     const activeField = editor.register("active")
+    const salesforceIdField = editor.register("salesforceId")
     const nameField = editor.register("productNameHouse")
     const vendorNameField = editor.register("productNameVendor")
     const codeField = editor.register("productCode")
@@ -885,6 +902,17 @@ interface EditableProductHeaderProps {
                 placeholder="Enter part #"
               />,
               editor.errors.productCode
+            )}
+
+            {renderRow(
+              "Salesforce Product ID",
+              <EditableField.Input
+                value={(salesforceIdField.value as string) ?? ""}
+                onChange={salesforceIdField.onChange}
+                onBlur={salesforceIdField.onBlur}
+                placeholder="Enter Salesforce Product ID"
+              />,
+              editor.errors.salesforceId
             )}
 
             {renderRow(

@@ -56,6 +56,7 @@ interface ProductCreateModalProps {
 
 interface ProductFormState {
   isActive: boolean
+  salesforceId: string
   distributorAccountId: string
   vendorAccountId: string
   productFamilyVendor: string
@@ -117,6 +118,7 @@ function asNullableText(value: unknown): string | null {
 
 const INITIAL_FORM: ProductFormState = {
   isActive: true,
+  salesforceId: "",
   distributorAccountId: "",
   vendorAccountId: "",
   productFamilyVendor: "",
@@ -299,6 +301,8 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
   const canSubmit = useMemo(() => {
     if (!form.productNameHouse.trim()) return false
     if (!form.revenueType.trim()) return false
+    const salesforceId = form.salesforceId.trim()
+    if (salesforceId && !/^[A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?$/.test(salesforceId)) return false
     const price = form.priceEach.trim()
     if (price) {
       const parsed = Number(price)
@@ -628,6 +632,7 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
 
     const payload = {
       isActive: Boolean(form.isActive),
+      salesforceId: form.salesforceId.trim() || null,
       distributorAccountId: form.distributorAccountId || null,
       vendorAccountId: form.vendorAccountId || null,
       productFamilyVendor: derivedProductFamilyVendor,
@@ -1153,6 +1158,17 @@ export function ProductCreateModal({ isOpen, onClose, onSuccess }: ProductCreate
                     <EditableSwitch checked={form.isActive} onChange={handleChange("isActive") as any} />
                     <span className="text-xs font-semibold text-gray-600">{form.isActive ? "Active" : "Inactive"}</span>
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className={labelCls}>Salesforce Product ID</label>
+                  <input
+                    className={inputCls}
+                    value={form.salesforceId}
+                    onChange={handleChange("salesforceId")}
+                    placeholder="Enter Salesforce Product ID"
+                  />
+                  {errors.salesforceId ? <p className="text-[11px] text-rose-600">{errors.salesforceId}</p> : null}
                 </div>
 
                 <div className="space-y-1">

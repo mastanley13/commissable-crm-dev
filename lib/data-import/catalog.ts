@@ -343,9 +343,15 @@ export const DATA_IMPORT_ENTITIES: DataImportEntityDefinition[] = [
   {
     type: "products",
     label: "Catalog / Products",
-    description: "Create or update product catalog records by product code.",
+    description: "Create or update product catalog records by Salesforce Product ID or product code.",
     fields: [
-      { id: "productCode", label: "Product Code", required: true, aliases: ["sku", "vendor part number", "code"] },
+      {
+        id: "salesforceId",
+        label: "Salesforce Product ID",
+        required: false,
+        aliases: ["salesforce id", "sf product id", "salesforce product2 id", "product2 id", "sfid"]
+      },
+      { id: "productCode", label: "Product Code", required: false, aliases: ["sku", "vendor part number", "code"] },
       {
         id: "productNameHouse",
         label: "Product Name (House)",
@@ -369,7 +375,7 @@ export const DATA_IMPORT_ENTITIES: DataImportEntityDefinition[] = [
         required: false,
         aliases: ["commission", "commission %"]
       },
-      { id: "isActive", label: "Is Active", required: false, aliases: ["active"] },
+      { id: "isActive", label: "Status", required: false, aliases: ["status", "active", "is active", "product status"] },
       { id: "partNumberHouse", label: "Part Number (House)", required: false, aliases: ["house part number"] },
       { id: "partNumberVendor", label: "Part Number (Vendor)", required: false, aliases: ["vendor part number", "other part number"] },
       { id: "vendorAccountName", label: "Vendor Account Name", required: false, aliases: ["vendor", "vendor name"] },

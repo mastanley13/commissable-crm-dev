@@ -13,6 +13,7 @@ import {
   isEnabledRevenueType
 } from "@/lib/server-revenue-types"
 import { canonicalizeMultiValueString } from "@/lib/multi-value"
+import { isValidSalesforceId, normalizeSalesforceIdInput } from "@/lib/salesforce-id"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -27,6 +28,7 @@ const PRODUCT_MUTATION_PERMISSIONS = [
 function resolveSortOrder(sortColumn: string, direction: "asc" | "desc"): Prisma.ProductOrderByWithRelationInput[] {
   const orderByMap: Record<string, Prisma.ProductOrderByWithRelationInput> = {
     productNameHouse: { productNameHouse: direction },
+    salesforceId: { salesforceId: direction },
     productNameVendor: { productNameVendor: direction },
     distributorName: { distributor: { accountName: direction } },
     vendorName: { vendor: { accountName: direction } },
@@ -117,6 +119,7 @@ export async function GET(request: NextRequest) {
           OR: [
             { productNameHouse: queryFilter },
             { productNameVendor: queryFilter },
+            { salesforceId: queryFilter },
             { productCode: queryFilter },
             { partNumberVendor: queryFilter },
             { productDescriptionVendor: queryFilter },
@@ -151,6 +154,9 @@ export async function GET(request: NextRequest) {
               break
             case "productNameVendor":
               andConditions.push({ productNameVendor: { contains: rawValue, mode: "insensitive" } })
+              break
+            case "salesforceId":
+              andConditions.push({ salesforceId: { contains: rawValue, mode: "insensitive" } })
               break
             case "distributorName":
               andConditions.push({ distributor: { accountName: { contains: rawValue, mode: "insensitive" } } })
@@ -308,6 +314,11 @@ export async function POST(request: NextRequest) {
 
       const productNameHouse = getString((payload as any).productNameHouse)
       if (!productNameHouse) errors.productNameHouse = "Product name is required"
+
+      const salesforceId = normalizeSalesforceIdInput((payload as any).salesforceId)
+      if (salesforceId && !isValidSalesforceId(salesforceId)) {
+        errors.salesforceId = "Salesforce Product ID must be 15 or 18 alphanumeric characters"
+      }
 
       const productCodeInput = getString((payload as any).productCode)
       const canonicalProductNameVendor = canonicalizeMultiValueString(getOptionalString((payload as any).productNameVendor), { kind: "text" })
@@ -504,6 +515,7 @@ export async function POST(request: NextRequest) {
           // Cast to any to allow recently added nullable metadata fields
           data: {
             tenantId: req.user.tenantId,
+            salesforceId,
             productCode: nextCode,
             productNameHouse,
             productNameDistributor: getOptionalString((payload as any).productNameDistributor),
@@ -561,6 +573,7 @@ export async function POST(request: NextRequest) {
         undefined,
         {
           productCode: created.productCode,
+          salesforceId: (created as any).salesforceId ?? null,
           productNameHouse: created.productNameHouse,
           productNameVendor: created.productNameVendor,
           partNumberVendor: (created as any).partNumberVendor ?? null,
@@ -574,6 +587,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: mapProductToRow(created) }, { status: 201 })
     } catch (error: any) {
       if (error?.code === "P2002") {
+        const target = Array.isArray(error?.meta?.target) ? error.meta.target.join(",") : ""
+        if (target.includes("salesforceId")) {
+          return NextResponse.json({ error: "A product with this Salesforce Product ID already exists" }, { status: 409 })
+        }
         return NextResponse.json({ error: "A product with this product code already exists" }, { status: 409 })
       }
 
