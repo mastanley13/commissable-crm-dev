@@ -1,0 +1,31 @@
+{
+  "runId": "2026-04-22_full-reconciliation-recorded_14-27-40",
+  "runDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40",
+  "suiteName": "reconciliation-suite",
+  "startedAt": "2026-04-22T18:27:52.168Z",
+  "finishedAt": "2026-04-22T18:53:43.795Z",
+  "exitCode": 0,
+  "baseURL": "http://127.0.0.1:3000",
+  "authFile": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\auth\\user.json",
+  "environmentLabel": "local",
+  "fixtureVersion": "unspecified",
+  "scenarioManifestPath": "docs/plans/04-01-2026-Reconciliation_Master_Test_Plan/generated/scenario-manifest.json",
+  "scenarioManifestGeneratedAt": "2026-04-09T18:24:29.356Z",
+  "scenarioCount": 105,
+  "isFullSuiteRun": true,
+  "gitCommit": "9ca6e2b54cae23df3a9b89b4d35e64621be8e794",
+  "statusCounts": {
+    "pass": 56,
+    "pass-pending-ui-review": 49
+  },
+  "artifactPaths": {
+    "htmlDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\html",
+    "resultsJson": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\results.json",
+    "resultsXml": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\results.xml",
+    "testResultsDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\test-results",
+    "scenarioResultsDir": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\scenario-results",
+    "reconciliationSummaryJson": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\reconciliation-summary.json",
+    "reconciliationSummaryMarkdown": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\reconciliation-summary.md",
+    "reconciliationScenariosCsv": "C:\\Users\\Administrator\\.cursor-projects\\projects\\commissable-crm-dev\\.artifacts\\playwright\\reconciliation-suite\\history\\2026-04-22_full-reconciliation-recorded_14-27-40\\reconciliation-scenarios.csv"
+  }
+}

@@ -32,11 +32,12 @@ function parseEnvValue(rawValue) {
   return trimmed
 }
 
-function loadEnvFile(filePath) {
+function loadEnvFile(filePath, options = {}) {
   if (!fs.existsSync(filePath)) {
     return
   }
 
+  const { override = false } = options
   const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/)
   for (const line of lines) {
     const trimmed = line.trim()
@@ -50,7 +51,7 @@ function loadEnvFile(filePath) {
     }
 
     const [, key, rawValue] = match
-    if (process.env[key] == null || process.env[key] === '') {
+    if (override || process.env[key] == null || process.env[key] === '') {
       process.env[key] = parseEnvValue(rawValue)
     }
   }
@@ -58,7 +59,7 @@ function loadEnvFile(filePath) {
 
 function loadPlaywrightEnv() {
   loadEnvFile(path.join(rootDir, '.env'))
-  loadEnvFile(path.join(rootDir, '.env.local'))
+  loadEnvFile(path.join(rootDir, '.env.local'), { override: true })
 }
 
 function timestampRunId() {
